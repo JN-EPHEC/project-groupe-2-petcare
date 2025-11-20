@@ -1,0 +1,275 @@
+{
+  "auth": {
+    "splash": {
+      "title1": "Prenez soin de",
+      "title2": "votre animal adoré",
+      "subtitle": "Renforcez les liens d'amour\nentre animaux et humains.",
+      "vetButton": "Vétérinaire",
+      "ownerButton": "Propriétaire d'animal"
+    },
+    "login": {
+      "title": "Log in",
+      "emailPlaceholder": "Email",
+      "passwordPlaceholder": "Mot de passe",
+      "loginButton": "Se connecter",
+      "signupButton": "S'inscrire",
+      "demoTitle": "Comptes de démo :",
+      "adminDemo": "Admin",
+      "ownerDemo": "Proprio",
+      "vetDemo": "Vétérinaire",
+      "errorTitle": "Erreur",
+      "errorMessage": "Veuillez entrer votre email et mot de passe",
+      "loginFailedTitle": "Échec de connexion",
+      "loginFailedMessage": "Identifiants invalides"
+    },
+    "signup": {
+      "title": "S'inscrire",
+      "firstNameLabel": "Prénom",
+      "firstNamePlaceholder": "*Charles",
+      "lastNameLabel": "Nom",
+      "lastNamePlaceholder": "*DuBOIS",
+      "emailLabel": "Email",
+      "emailPlaceholder": "*Charlesdubois@hotmail.com",
+      "phoneLabel": "Téléphone",
+      "phonePlaceholder": "*+32 49 90 89 808",
+      "petNameLabel": "Nom de l'animal",
+      "petNamePlaceholder": "*KITTY",
+      "passwordLabel": "Mot de passe",
+      "passwordPlaceholder": "******",
+      "confirmPasswordLabel": "Confirmer le mot de passe",
+      "confirmPasswordPlaceholder": "******",
+      "signupButton": "Créer un compte",
+      "loginButton": "Se connecter",
+      "errorTitle": "Erreur",
+      "fillAllFieldsError": "Veuillez remplir tous les champs",
+      "passwordMismatchError": "Les mots de passe ne correspondent pas",
+      "signupFailedTitle": "Échec de l'inscription"
+    },
+    "emailConfirmation": {
+      "title": "Confirmation email",
+      "message1": "Nous avons envoyé un email de confirmation à votre adresse.",
+      "message2": "Veuillez vérifier votre boîte de réception et cliquer sur le lien pour activer votre compte.",
+      "understoodButton": "Compris",
+      "resendButton": "Renvoyer l'email"
+    }
+  },
+  "home": {
+    "greeting": "Salut",
+    "morningGreeting": "Bonjour !",
+    "afternoonGreeting": "Bon après-midi !",
+    "eveningGreeting": "Bonsoir !",
+    "calendarCard": "Calendrier",
+    "remindersCard": "Rappels",
+    "medicalHistoryCard": "Historique médical",
+    "offlineModeCard": "Mode hors ligne",
+    "emergencyCard": "Urgences",
+    "reminders": {
+      "title": "Rappels",
+      "past": "Passé",
+      "upcoming": "À venir",
+      "noEvents": "aucun événement",
+      "vaccine": "Vaccin",
+      "vermifuge": "vermifuge"
+    },
+    "offlineMode": {
+      "title": "Mode hors ligne",
+      "description": "Accédez à vos données essentielles même sans connexion internet.",
+      "reminders": "Rappels",
+      "vaccinations": "Carnets de vaccination",
+      "medicalRecords": "Fiches médicales",
+      "vetContacts": "Contacts vétérinaires",
+      "infoTitle": "Information",
+      "infoText": "Les données sont synchronisées automatiquement lorsque vous êtes connecté à internet."
+    }
+  },
+  "profile": {
+    "myProfile": "Mon Profil",
+    "myAnimal": "Mon animal",
+    "addAnimal": "Ajouter un animal",
+    "premium": "Premium",
+    "notificationsTitle": "Notifications",
+    "profile": "Profile",
+    "emailLabel": "Your Email Adress",
+    "phoneLabel": "Phone number",
+    "userProfile": {
+      "bio": "Fier parent de {petName}\nMa vie tourne autour de petits ronrons et de grandes aventures avec mon chaton {petName}, expert en câlins et en chaos adorable. Entre une sieste partagée et des sessions de jeux endiablées, j'essaie de survivre à son charme irrésistible... et j'adore ça !"
+    },
+    "petProfile": {
+      "noPet": "Aucun profil d'animal trouvé",
+      "myVaccinations": "Mes vaccinations",
+      "myHealthRecord": "Mon carnet de santé",
+      "myDocuments": "Mes documents",
+      "male": "Male",
+      "female": "Female",
+      "years": "ans"
+    },
+    "editProfile": {
+      "title": "Paramètres",
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "email": "Votre adresse email",
+      "phone": "Numéro de téléphone",
+      "petName": "Nom de l'animal",
+      "newPassword": "Nouveau mot de passe",
+      "saveButton": "Sauvegarder",
+      "deleteButton": "Supprimer le compte",
+      "confirmButton": "OUI"
+    },
+    "addPet": {
+      "title": "Ajouter un animal",
+      "addPhoto": "Ajouter une photo",
+      "petName": "Nom de l'animal",
+      "petNamePlaceholder": "Ex: Max, Bella, Kitty...",
+      "species": "Espèce",
+      "speciesPlaceholder": "Chat, Chien, Lapin...",
+      "breed": "Race",
+      "breedPlaceholder": "Ex: Siamois, Labrador...",
+      "age": "Âge (années)",
+      "agePlaceholder": "Ex: 3",
+      "weight": "Poids (kg)",
+      "weightPlaceholder": "Ex: 5",
+      "gender": "Sexe",
+      "genderPlaceholder": "Mâle / Femelle",
+      "saveButton": "Enregistrer",
+      "cancelButton": "Annuler",
+      "errorTitle": "Erreur",
+      "errorMessage": "Veuillez remplir au moins le nom et l'espèce",
+      "successTitle": "Succès",
+      "successMessage": "Animal ajouté avec succès !"
+    },
+    "notifications": {
+      "reminder": "Rappel",
+      "vaccines": "Vaccins",
+      "bottle": "Biberon",
+      "food": "Nourriture",
+      "vermifugeReminder": "Donner le vermifuge\nVérifier le type et la dose avec le vétérinaire",
+      "vaccineReminder": "Vaccin à faire\nVérifier le carnet de santé de l'animal et les rappels vétérinaires",
+      "bottleReminder": "Rappel : Donner le biberon\n15H\nVérifier la température du lait et la quantité adaptée",
+      "foodReminder": "Rappel : Donner à manger\n15H\nAdapter la quantité selon l'âge, le poids et le type d'animal",
+      "okButton": "ok"
+    },
+    "preferences": {
+      "title": "Préférences",
+      "description": "Nous utilisons des cookies pour améliorer votre expérience, analyser l'utilisation et personnaliser le contenu.",
+      "strictlyNecessary": "Strictement nécessaire :",
+      "strictlyNecessaryDesc": "Ces cookies sont requis pour que l'application fonctionne correctement",
+      "strictlyNecessaryStatus": "ON (désactivé)",
+      "preferences": "Préférences :",
+      "preferencesDesc": "Mémoriser les paramètres de langue et de région",
+      "analytics": "Analytiques :",
+      "analyticsDesc": "Nous aider à comprendre l'utilisation pour améliorer l'application",
+      "marketing": "Marketing",
+      "marketingDesc": "Adapter les publicités et mesurer les performances",
+      "acceptAllButton": "Tout accepter",
+      "rejectAllButton": "Tout rejeter",
+      "saveButton": "Enregistrer les préférences",
+      "footer": "Vous pouvez modifier vos préférences à tout moment dans la section Cookies.",
+      "on": "ON",
+      "off": "OFF"
+    }
+  },
+  "health": {
+    "healthRecord": {
+      "title": "Historique médical",
+      "vaccines": "Vaccins",
+      "noVaccines": "Aucun vaccin enregistré",
+      "treatments": "Traitements",
+      "noTreatments": "Aucun traitement enregistré",
+      "surgeries": "Chirurgies",
+      "noSurgeries": "Aucune chirurgie enregistrée",
+      "operations": "Opérations",
+      "noOperations": "Aucune opération enregistrée",
+      "vermifuges": "Vermifuges",
+      "noVermifuges": "Aucun traitement vermifuge enregistré",
+      "by": "par"
+    },
+    "documents": {
+      "title": "Mes documents",
+      "uploadedOn": "Téléchargé le :",
+      "noDocuments": "Aucun document téléchargé"
+    },
+    "vaccinations": {
+      "title": "Mes vaccins",
+      "tableTitle": "Pet Vaccination History",
+      "petName": "Pet Name:",
+      "locationOfBirth": "Location of Birth:",
+      "sire": "Sire:",
+      "breed": "Breed:",
+      "breederName": "Breeder Name:",
+      "dam": "Dam:",
+      "colour": "Colour:",
+      "breederContact": "Breeder contact info:",
+      "dateColumn": "DATE",
+      "vaccinationColumn": "VACCINATION",
+      "ageColumn": "AGE"
+    }
+  },
+  "emergency": {
+    "title": "Vétérinaires à proximité",
+    "seeAll": "Voir tout",
+    "mapPlaceholder": "Carte (Placeholder)",
+    "callTitle": "Appeler le vétérinaire",
+    "callMessage": "Voulez-vous appeler {phone} ?",
+    "cancel": "Annuler",
+    "call": "Appeler",
+    "errorTitle": "Erreur",
+    "errorMessage": "Impossible de passer l'appel téléphonique",
+    "map": {
+      "title": "Tous nos vétérinaires en Belgique",
+      "legend": "= Vétérinaires disponibles"
+    },
+    "specialties": {
+      "dentist": "Dentiste vétérinaire",
+      "generalist": "Vétérinaire généraliste"
+    }
+  },
+  "premium": {
+    "title1": "Accédez à toutes les",
+    "title2": "fonctionnalités premium !",
+    "subtitle": "Profitez de toutes les fonctionnalités sans aucune limite et simplifiez le quotidien de vos compagnons en ajoutant un profil",
+    "priceLabel": "Abonnement Premium : ",
+    "price": "€0.99/ mois",
+    "priceNote": "*par animal",
+    "addAnimal": "AJOUTER un autre animal",
+    "moreFeatures": "Plus de fonctionnalités",
+    "bannerTitle": "GOOD",
+    "bannerSubtitle": "et Tout à Dit",
+    "bannerText": "LE CHOIX MALIN",
+    "bannerDescription": "pour un animal en bonne santé et heureux."
+  },
+  "common": {
+    "logout": "Déconnexion",
+    "logoutConfirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
+    "cancel": "Annuler",
+    "confirm": "Déconnexion",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "search": "Rechercher...",
+    "or": "ou",
+    "months": {
+      "january": "Janvier",
+      "february": "Février",
+      "march": "Mars",
+      "april": "Avril",
+      "may": "Mai",
+      "june": "Juin",
+      "july": "Juillet",
+      "august": "Août",
+      "september": "Septembre",
+      "october": "Octobre",
+      "november": "Novembre",
+      "december": "Décembre"
+    },
+    "days": {
+      "monday": "Lun",
+      "tuesday": "Mar",
+      "wednesday": "Mer",
+      "thursday": "Jeu",
+      "friday": "Ven",
+      "saturday": "Sam",
+      "sunday": "Dim"
+    }
+  }
+}
+

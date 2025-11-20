@@ -1,50 +1,164 @@
-# Welcome to your Expo app 👋
+# PetCare+ Mobile App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native mobile application for pet care management, built with Expo and TypeScript.
 
-## Get started
+## 🎭 Demo Accounts Available!
 
-1. Install dependencies
+**You can now test the app with fully functional demo accounts - no Firebase needed!**
 
-   ```bash
-   npm install
-   ```
+### Quick Start with Demo:
+1. Run `npm start` and press `w`
+2. Click "Pet owner" on Splash screen
+3. Click "**Admin**" button on Login screen (auto-fills credentials)
+4. Click "Sign in"
+5. **You're in with full demo data!** 🎉
 
-2. Start the app
+See **[DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md)** for all demo credentials and features.
 
-   ```bash
-   npx expo start
-   ```
+## Features
 
-In the output, you'll find options to open the app in a
+- **Authentication**: Splash screen, Login, and Signup flows with working demo accounts
+- **Home Dashboard**: Quick access to reminders, medical history, offline mode, and emergencies
+- **Profile Management**: Manage owner and pet profiles with real data
+- **Health Records**: Track vaccinations, treatments, surgeries, and medical history
+- **Documents**: Store and manage pet-related documents
+- **Emergency Services**: Find nearby veterinarians with contact information (clickable call buttons)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Tech Stack
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **Expo** (React Native framework)
+- **React Navigation** (Bottom tabs + Stack navigation)
+- **TypeScript**
+- **Demo Authentication System** (Working authentication with dummy data)
+- **Firebase Placeholders** (Ready for Firebase integration)
 
-## Get a fresh project
+## Color Scheme
 
-When you're ready, run:
+- Navy: #3F3D7C
+- Teal: #1BA9B5
+- Light Blue: #B3E5E8
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+
+### Installation
+
+Dependencies are already installed! Just run:
 
 ```bash
-npm run reset-project
+npm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Running the App
 
-## Learn more
+#### Web (Recommended for development):
+```bash
+npm start
+```
+Then press `w` to open in web browser with mobile viewport.
 
-To learn more about developing your project with Expo, look at the following resources:
+#### Demo Login:
+On the login screen, use the quick-fill buttons:
+- **Admin** button → `admin@petcare.com` / `admin123`
+- **Owner** button → `charles@example.com` / `demo123`
+- **Vet** button → `vet@petcare.com` / `vet123`
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+#### iOS Simulator:
+```bash
+npm run ios
+```
 
-## Join the community
+#### Android Emulator:
+```bash
+npm run android
+```
 
-Join our community of developers creating universal apps.
+## Project Structure
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+/src
+  /screens
+    /auth          - Splash, Login, Signup screens
+    /home          - Home, Reminders screens
+    /profile       - Owner and Pet profile screens
+    /health        - Health records, Documents screens
+    /emergency     - Emergency vet list screen
+  /components      - Reusable components (Button, Input, CustomTabBar)
+  /navigation      - Navigation configuration
+  /services        - Firebase placeholder services
+  /theme           - Colors, spacing, typography configuration
+```
+
+## Firebase Integration
+
+The app includes Firebase placeholder functions in `/src/services/firebase.ts`. To integrate with Firebase:
+
+1. Install Firebase SDK:
+```bash
+npm install firebase
+```
+
+2. Create a Firebase project at https://console.firebase.google.com
+
+3. Add your Firebase configuration to `/src/services/firebase.ts`
+
+4. Replace placeholder functions with actual Firebase SDK calls:
+   - `firebaseAuth.signIn()` → Firebase Authentication
+   - `firebaseAuth.signUp()` → Firebase Authentication
+   - `firebaseFirestore.getUserProfile()` → Firestore queries
+   - `firebaseStorage.uploadDocument()` → Firebase Storage
+
+## Navigation Flow
+
+```
+Splash Screen
+  ↓
+Login / Signup
+  ↓
+Main App (Bottom Tabs)
+  ├── Home Tab
+  │   ├── Home Screen
+  │   └── Reminders Screen
+  ├── Add Tab (Location Pin - Placeholder)
+  ├── Search Tab
+  │   └── Emergency/Vet Finder
+  └── Profile Tab
+      ├── Owner Profile
+      ├── Pet Profile
+      ├── Health Records
+      └── Documents
+```
+
+## Customization
+
+### Adding Images
+
+Replace placeholder images with actual assets:
+- Logo: `/logo.jpeg` (already present)
+- Pet images: Add to `/assets/` folder
+- User avatars: Add to `/assets/` folder
+
+### Modifying Colors
+
+Edit color scheme in `/src/theme/colors.ts`
+
+### Adding New Screens
+
+1. Create screen component in appropriate `/src/screens/` folder
+2. Add to navigation in `/src/navigation/RootNavigator.tsx`
+
+## Development Notes
+
+- The app uses custom tab bar with a centered location pin button
+- All forms include placeholder text matching the design mockups
+- Firebase integration is ready but not yet connected
+- Map integration for vet locations is prepared as a placeholder
+
+## License
+
+Private project for Soumiya's PetCare+
+
