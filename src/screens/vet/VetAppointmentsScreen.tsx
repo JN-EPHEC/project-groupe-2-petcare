@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
+import { useAuth } from '../../context/AuthContext';
+import { getAppointmentsByVetId, updateAppointment, cancelAppointment } from '../../services/firestoreService';
 
 interface VetAppointmentsScreenProps {
   navigation: any;
@@ -10,10 +12,32 @@ interface VetAppointmentsScreenProps {
 
 export const VetAppointmentsScreen: React.FC<VetAppointmentsScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
   const [searchQuery, setSearchQuery] = useState('');
+  const [allAppointments, setAllAppointments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const allAppointments = [
+  useEffect(() => {
+    loadAppointments();
+  }, [user]);
+
+  const loadAppointments = async () => {
+    if (!user || user.role !== 'vet') return;
+    
+    setIsLoading(true);
+    try {
+      const appointmentsData = await getAppointmentsByVetId(user.id);
+      setAllAppointments(appointmentsData);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Keep hardcoded data as fallback for demo
+  const demoAppointments = [
     {
       id: '1',
       date: '2025-11-21',

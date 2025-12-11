@@ -7,17 +7,22 @@ import { Button, Input, PasswordStrengthIndicator } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { getFirebaseErrorMessage } from '../../services/firebaseAuth';
 
-interface SignupScreenProps {
+interface VetSignupScreenProps {
   navigation: any;
 }
 
-export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
+export const VetSignupScreen: React.FC<VetSignupScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [location, setLocation] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [clinicName, setClinicName] = useState('');
+  const [clinicAddress, setClinicAddress] = useState('');
+  const [experience, setExperience] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [signupError, setSignupError] = useState('');
@@ -27,10 +32,14 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [lastNameError, setLastNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [specialtyError, setSpecialtyError] = useState('');
+  const [clinicNameError, setClinicNameError] = useState('');
+  const [clinicAddressError, setClinicAddressError] = useState('');
+  const [experienceError, setExperienceError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   
-  const { signUp, isLoading } = useAuth();
+  const { signUpVet, isLoading } = useAuth();
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -91,6 +100,25 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
       case 'location':
         setLocation(value);
         break;
+      case 'specialty':
+        setSpecialty(value);
+        if (specialtyError && value) setSpecialtyError('');
+        break;
+      case 'clinicName':
+        setClinicName(value);
+        if (clinicNameError && value) setClinicNameError('');
+        break;
+      case 'clinicAddress':
+        setClinicAddress(value);
+        if (clinicAddressError && value) setClinicAddressError('');
+        break;
+      case 'experience':
+        setExperience(value);
+        if (experienceError && value) setExperienceError('');
+        break;
+      case 'licenseNumber':
+        setLicenseNumber(value);
+        break;
       case 'password':
         setPassword(value);
         if (passwordError) validatePassword(value);
@@ -122,6 +150,22 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
       setPhoneError(t('auth.validation.phoneRequired'));
       isValid = false;
     }
+    if (!specialty) {
+      setSpecialtyError('Specialité requise');
+      isValid = false;
+    }
+    if (!clinicName) {
+      setClinicNameError('Nom de la clinique requis');
+      isValid = false;
+    }
+    if (!clinicAddress) {
+      setClinicAddressError('Adresse de la clinique requise');
+      isValid = false;
+    }
+    if (!experience) {
+      setExperienceError('Années d\'expérience requises');
+      isValid = false;
+    }
     if (!validatePassword(password)) {
       isValid = false;
     }
@@ -132,16 +176,25 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     if (!isValid) return;
 
     try {
-      await signUp({
+      await signUpVet({
         firstName,
         lastName,
         email,
         phone,
         location: location || 'Belgique',
+        specialty,
+        clinicName,
+        clinicAddress,
+        experience,
+        licenseNumber,
         password,
       });
-      // Rediriger vers l'écran de vérification d'email
-      navigation.navigate('EmailVerification', { email });
+      // Rediriger vers l'écran de confirmation en attente d'approbation
+      navigation.navigate('EmailVerification', { 
+        email, 
+        isVet: true,
+        message: 'Votre compte vétérinaire a été créé avec succès ! Vous recevrez une notification une fois qu\'un administrateur aura approuvé votre compte.'
+      });
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error);
       setSignupError(errorMessage);
@@ -163,8 +216,17 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           <View style={styles.headerSection}>
-            <Text style={styles.title}>{t('auth.signup.title')}</Text>
-            <Text style={styles.subtitle}>{t('auth.signup.subtitle')}</Text>
+            <View style={styles.titleRow}>
+              <Ionicons name="medical" size={32} color={colors.navy} />
+              <Text style={styles.title}>Inscription Vétérinaire</Text>
+            </View>
+            <Text style={styles.subtitle}>Créez votre compte professionnel</Text>
+            <View style={styles.infoBox}>
+              <Ionicons name="information-circle" size={20} color={colors.teal} />
+              <Text style={styles.infoText}>
+                Votre compte sera vérifié par un administrateur avant activation
+              </Text>
+            </View>
           </View>
 
           {signupError ? (
@@ -175,11 +237,13 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
           ) : null}
 
           <View style={styles.formContainer}>
+            <Text style={styles.sectionTitle}>Informations personnelles</Text>
+            
             <View style={styles.row}>
               <Input
                 value={firstName}
                 onChangeText={(text) => handleFieldChange('firstName', text)}
-                placeholder={t('auth.signup.firstNamePlaceholder')}
+                placeholder="Prénom"
                 iconLeft="person"
                 error={firstNameError}
                 success={firstName.length > 0 && !firstNameError}
@@ -189,7 +253,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
               <Input
                 value={lastName}
                 onChangeText={(text) => handleFieldChange('lastName', text)}
-                placeholder={t('auth.signup.lastNamePlaceholder')}
+                placeholder="Nom"
                 iconLeft="person-outline"
                 error={lastNameError}
                 success={lastName.length > 0 && !lastNameError}
@@ -200,7 +264,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             <Input
               value={email}
               onChangeText={(text) => handleFieldChange('email', text)}
-              placeholder={t('auth.signup.emailPlaceholder')}
+              placeholder="Email professionnel"
               keyboardType="email-address"
               autoCapitalize="none"
               iconLeft="mail"
@@ -211,7 +275,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             <Input
               value={phone}
               onChangeText={(text) => handleFieldChange('phone', text)}
-              placeholder={t('auth.signup.phonePlaceholder')}
+              placeholder="Téléphone"
               keyboardType="phone-pad"
               iconLeft="call"
               error={phoneError}
@@ -221,15 +285,64 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             <Input
               value={location}
               onChangeText={(text) => handleFieldChange('location', text)}
-              placeholder={t('auth.signup.locationPlaceholder')}
+              placeholder="Ville / Région"
               iconLeft="location"
               success={location.length > 0}
             />
 
+            <Text style={styles.sectionTitle}>Informations professionnelles</Text>
+
+            <Input
+              value={specialty}
+              onChangeText={(text) => handleFieldChange('specialty', text)}
+              placeholder="Spécialité (ex: Médecine générale, Chirurgie...)"
+              iconLeft="fitness"
+              error={specialtyError}
+              success={specialty.length > 0 && !specialtyError}
+            />
+
+            <Input
+              value={clinicName}
+              onChangeText={(text) => handleFieldChange('clinicName', text)}
+              placeholder="Nom de la clinique"
+              iconLeft="business"
+              error={clinicNameError}
+              success={clinicName.length > 0 && !clinicNameError}
+            />
+
+            <Input
+              value={clinicAddress}
+              onChangeText={(text) => handleFieldChange('clinicAddress', text)}
+              placeholder="Adresse de la clinique"
+              iconLeft="location-outline"
+              error={clinicAddressError}
+              success={clinicAddress.length > 0 && !clinicAddressError}
+            />
+
+            <Input
+              value={experience}
+              onChangeText={(text) => handleFieldChange('experience', text)}
+              placeholder="Années d'expérience"
+              keyboardType="numeric"
+              iconLeft="time"
+              error={experienceError}
+              success={experience.length > 0 && !experienceError}
+            />
+
+            <Input
+              value={licenseNumber}
+              onChangeText={(text) => handleFieldChange('licenseNumber', text)}
+              placeholder="Numéro de licence (optionnel)"
+              iconLeft="card"
+              success={licenseNumber.length > 0}
+            />
+
+            <Text style={styles.sectionTitle}>Sécurité</Text>
+
             <Input
               value={password}
               onChangeText={(text) => handleFieldChange('password', text)}
-              placeholder={t('auth.signup.passwordPlaceholder')}
+              placeholder="Mot de passe"
               secureTextEntry
               iconLeft="lock-closed"
               error={passwordError}
@@ -242,7 +355,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             <Input
               value={confirmPassword}
               onChangeText={(text) => handleFieldChange('confirmPassword', text)}
-              placeholder={t('auth.signup.confirmPasswordPlaceholder')}
+              placeholder="Confirmer le mot de passe"
               secureTextEntry
               iconLeft="lock-closed"
               error={confirmPasswordError}
@@ -251,39 +364,17 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
           </View>
 
           <Button
-            title={t('auth.signup.signupButton')}
+            title="S'inscrire en tant que vétérinaire"
             onPress={handleSignup}
             variant="primary"
             style={styles.signupButton}
             loading={isLoading}
           />
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OU</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity 
-            style={styles.vetSignupBox}
-            onPress={() => navigation.navigate('VetSignup')}
-          >
-            <View style={styles.vetSignupContent}>
-              <View style={styles.vetIconWrapper}>
-                <Ionicons name="medical" size={24} color={colors.white} />
-              </View>
-              <View style={styles.vetSignupTextContainer}>
-                <Text style={styles.vetSignupTitle}>Vous êtes vétérinaire ?</Text>
-                <Text style={styles.vetSignupSubtitle}>Inscrivez-vous en tant que professionnel</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={24} color={colors.navy} />
-            </View>
-          </TouchableOpacity>
-
           <View style={styles.loginSection}>
-            <Text style={styles.alreadyHaveAccountText}>{t('auth.signup.alreadyHaveAccount')}</Text>
+            <Text style={styles.alreadyHaveAccountText}>Déjà un compte ?</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.loginLink}>{t('auth.signup.signInLink')}</Text>
+              <Text style={styles.loginLink}>Se connecter</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -318,15 +409,34 @@ const styles = StyleSheet.create({
   headerSection: {
     marginBottom: spacing.lg,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
   title: {
     fontSize: typography.fontSize.xxxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
-    marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: typography.fontSize.md,
     color: colors.gray,
+    marginBottom: spacing.md,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightBlue,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
+    color: colors.navy,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -345,6 +455,13 @@ const styles = StyleSheet.create({
   formContainer: {
     marginBottom: spacing.md,
   },
+  sectionTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+  },
   row: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -355,55 +472,6 @@ const styles = StyleSheet.create({
   signupButton: {
     width: '100%',
     marginBottom: spacing.lg,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.lightGray,
-  },
-  dividerText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.gray,
-    marginHorizontal: spacing.md,
-    fontWeight: typography.fontWeight.semiBold,
-  },
-  vetSignupBox: {
-    backgroundColor: colors.lightBlue,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    borderWidth: 2,
-    borderColor: colors.navy,
-  },
-  vetSignupContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  vetIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.navy,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  vetSignupTextContainer: {
-    flex: 1,
-  },
-  vetSignupTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.navy,
-  },
-  vetSignupSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.gray,
   },
   loginSection: {
     flexDirection: 'row',
@@ -422,3 +490,4 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
   },
 });
+
