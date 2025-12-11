@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { Button, Input } from '../../components';
+import { addPet } from '../../services/firestoreService';
+import { useAuth } from '../../context/AuthContext';
 
 interface AddPetScreenProps {
   navigation: any;
@@ -11,22 +13,65 @@ interface AddPetScreenProps {
 
 export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
+  const { user, refreshPets } = useAuth();
   const [petName, setPetName] = useState('');
   const [species, setSpecies] = useState('');
   const [breed, setBreed] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
   const [gender, setGender] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!petName || !species) {
       Alert.alert(t('profile.addPet.errorTitle'), t('profile.addPet.errorMessage'));
       return;
     }
 
-    Alert.alert(t('profile.addPet.successTitle'), t('profile.addPet.successMessage'), [
-      { text: 'OK', onPress: () => navigation.goBack() }
-    ]);
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Determine pet type and emoji
+      const petType = species.toLowerCase().includes('chien') || species.toLowerCase().includes('dog') ? 'dog' : 
+                      species.toLowerCase().includes('chat') || species.toLowerCase().includes('cat') ? 'cat' : 'other';
+      const emoji = petType === 'dog' ? '🐕' : petType === 'cat' ? '🐈' : '🐾';
+
+      await addPet({
+        name: petName,
+        type: petType,
+        breed: breed || 'Non précisée',
+        age: parseInt(age) || 0,
+        weight: parseFloat(weight) || 0,
+        emoji,
+        ownerId: user.id,
+        gender: gender || 'Non précisé',
+        avatarUrl: null,
+      });
+
+      // Rafraîchir la liste des animaux dans le contexte
+      await refreshPets();
+
+      // Afficher le message de succès et naviguer
+      Alert.alert(
+        t('profile.addPet.successTitle'), 
+        t('profile.addPet.successMessage'), 
+        [
+          { 
+            text: 'OK', 
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error adding pet:', error);
+      Alert.alert('Erreur', 'Impossible d\'ajouter l\'animal. Veuillez réessayer.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -106,6 +151,8 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
               onPress={handleSave}
               variant="primary"
               style={styles.button}
+              loading={isLoading}
+              disabled={isLoading}
             />
 
             <Button

@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CustomTabBar } from '../components/CustomTabBar';
 
 // Auth Screens
-import { SplashScreen, LoginScreen, SignupScreen, EmailConfirmationScreen } from '../screens/auth';
+import { SplashScreen, LoginScreen, SignupScreen, VetSignupScreen, EmailConfirmationScreen, ForgotPasswordScreen, EmailVerificationScreen } from '../screens/auth';
 
 // Home Screens
 import { HomeScreen, RemindersScreen, OfflineModeScreen, CalendarScreen } from '../screens/home';
@@ -267,6 +267,9 @@ const RootNavigator = () => {
       <Stack.Screen name="Splash" component={SplashScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Signup" component={SignupScreen} />
+      <Stack.Screen name="VetSignup" component={VetSignupScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
       <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
     </Stack.Navigator>

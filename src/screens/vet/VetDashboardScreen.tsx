@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
+import { getAppointmentsByVetId, getPatientsByVetId } from '../../services/firestoreService';
 
 interface VetDashboardScreenProps {
   navigation: any;
@@ -12,60 +13,54 @@ interface VetDashboardScreenProps {
 export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [patients, setPatients] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data pour le vétérinaire
-  const stats = {
-    todayAppointments: 5,
-    pendingAppointments: 3,
-    totalPatients: 42,
-    consultationsThisWeek: 18,
+  useEffect(() => {
+    loadData();
+  }, [user]);
+
+  const loadData = async () => {
+    if (!user || user.role !== 'vet') return;
+    
+    setIsLoading(true);
+    try {
+      const [appointmentsData, patientsData] = await Promise.all([
+        getAppointmentsByVetId(user.id),
+        getPatientsByVetId(user.id),
+      ]);
+      setAppointments(appointmentsData);
+      setPatients(patientsData);
+    } catch (error) {
+      console.error('Error loading vet dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const todayAppointments = [
-    {
-      id: '1',
-      time: '09:00',
-      petName: 'Kitty',
-      ownerName: 'John Doe',
-      type: 'Consultation',
-      status: 'confirmed',
-    },
-    {
-      id: '2',
-      time: '10:30',
-      petName: 'Max',
-      ownerName: 'Charles DuBois',
-      type: 'Vaccination',
-      status: 'pending',
-    },
-    {
-      id: '3',
-      time: '14:00',
-      petName: 'Luna',
-      ownerName: 'Marie Martin',
-      type: 'Contrôle',
-      status: 'confirmed',
-    },
-  ];
+  // Calculate stats from real data
+  const today = new Date().toISOString().split('T')[0];
+  const todayAppointments = appointments.filter(apt => 
+    apt.date === today && apt.status === 'upcoming'
+  );
+  const pendingAppointments = appointments.filter(apt => 
+    apt.status === 'upcoming'
+  );
+  
+  const stats = {
+    todayAppointments: todayAppointments.length,
+    pendingAppointments: pendingAppointments.length,
+    totalPatients: patients.length,
+    consultationsThisWeek: appointments.filter(apt => {
+      const aptDate = new Date(apt.date);
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return aptDate >= weekAgo && apt.status === 'completed';
+    }).length,
+  };
 
-  const pendingRequests = [
-    {
-      id: '1',
-      petName: 'Rocky',
-      ownerName: 'Sophie Laurent',
-      requestDate: '2025-11-21',
-      preferredDate: '2025-11-25',
-      type: 'Urgence',
-    },
-    {
-      id: '2',
-      petName: 'Bella',
-      ownerName: 'Thomas Bernard',
-      requestDate: '2025-11-20',
-      preferredDate: '2025-11-23',
-      type: 'Consultation',
-    },
-  ];
+  const pendingRequests = pendingAppointments.slice(0, 3); // Show first 3
 
   const getGreeting = () => {
     const hour = new Date().getHours();
