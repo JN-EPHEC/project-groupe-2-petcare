@@ -1,0 +1,94 @@
+rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Fonction helper pour vérifier l'authentification
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Fonction helper pour vérifier si l'utilisateur est propriétaire
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // DOCUMENTS : documents/{userId}/{petId}/{filename}
+    // Chaque utilisateur peut uploader et lire ses propres documents
+    match /documents/{userId}/{petId}/{filename} {
+      // Lecture : l'utilisateur peut lire ses propres documents
+      allow read: if isOwner(userId);
+      
+      // Écriture : l'utilisateur peut créer/modifier/supprimer ses propres documents
+      allow write: if isOwner(userId);
+      
+      // Limiter la taille des fichiers à 10 MB
+      allow create: if isOwner(userId) 
+                    && request.resource.size < 10 * 1024 * 1024;
+    }
+    
+    // AVATARS UTILISATEURS : avatars/{userId}/{filename}
+    match /avatars/{userId}/{filename} {
+      // Lecture : tout le monde peut voir les avatars
+      allow read: if true;
+      
+      // Écriture : uniquement le propriétaire
+      allow write: if isOwner(userId);
+      
+      // Limiter la taille à 5 MB pour les avatars
+      allow create: if isOwner(userId) 
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+    
+    // PHOTOS D'ANIMAUX : pets/{userId}/{petId}/{filename}
+    match /pets/{userId}/{petId}/{filename} {
+      // Lecture : tout le monde peut voir les photos d'animaux
+      allow read: if true;
+      
+      // Écriture : uniquement le propriétaire
+      allow write: if isOwner(userId);
+      
+      // Limiter la taille à 5 MB
+      allow create: if isOwner(userId) 
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+    
+    // WELLNESS ENTRIES : wellness/{userId}/{petId}/{filename}
+    match /wellness/{userId}/{petId}/{filename} {
+      // Lecture : l'utilisateur peut lire ses propres données
+      allow read: if isOwner(userId);
+      
+      // Écriture : l'utilisateur peut écrire ses propres données
+      allow write: if isOwner(userId);
+      
+      // Limiter la taille à 5 MB
+      allow create: if isOwner(userId) 
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+    
+    // BLOG IMAGES (pour les admins) : blog/{articleId}/{filename}
+    match /blog/{articleId}/{filename} {
+      // Lecture : tout le monde peut voir les images de blog
+      allow read: if true;
+      
+      // Écriture : réservé aux admins (à implémenter avec custom claims)
+      allow write: if isAuthenticated();
+      
+      // Limiter la taille à 5 MB
+      allow create: if isAuthenticated() 
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+    
+    // Par défaut, tout le reste est interdit
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

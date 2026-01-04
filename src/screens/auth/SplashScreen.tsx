@@ -24,7 +24,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.appName}>PetCare+</Text>
         <Text style={styles.tagline}>Votre compagnon santé pour animaux</Text>
       </View>
 
@@ -34,41 +33,43 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
           <Text style={styles.title}>{t('auth.splash.title2')}</Text>
           
           <Text style={styles.subtitle}>
-            {t('auth.splash.subtitle')}
+            Une application simple et intuitive pour propriétaires et vétérinaires
           </Text>
 
-          <View style={styles.rolesContainer}>
+          {/* Features highlights */}
+          <View style={styles.featuresContainer}>
+            <View style={styles.featureItem}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+              <Text style={styles.featureText}>Suivi santé complet</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+              <Text style={styles.featureText}>Rappels automatiques</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+              <Text style={styles.featureText}>Connexion avec vétérinaires</Text>
+            </View>
+          </View>
+
+          {/* Boutons d'action principaux */}
+          <View style={styles.actionsContainer}>
             <TouchableOpacity
-              style={styles.roleCard}
+              style={styles.primaryButton}
               onPress={() => navigation.navigate('Login')}
               activeOpacity={0.8}
             >
-              <View style={[styles.roleIconContainer, { backgroundColor: '#E0F2F1' }]}>
-                <Ionicons name="paw" size={32} color={colors.teal} />
-              </View>
-              <Text style={styles.roleTitle}>{t('auth.splash.ownerButton')}</Text>
-              <Text style={styles.roleDescription}>Gérez la santé de votre animal</Text>
-              <Ionicons name="arrow-forward" size={20} color={colors.teal} style={styles.roleArrow} />
+              <Text style={styles.primaryButtonText}>Se connecter</Text>
+              <Ionicons name="arrow-forward" size={20} color={colors.white} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.roleCard}
-              onPress={() => navigation.navigate('Login')}
+              style={styles.secondaryButton}
+              onPress={() => navigation.navigate('SignupChoice')}
               activeOpacity={0.8}
             >
-              <View style={[styles.roleIconContainer, { backgroundColor: '#E3F2FD' }]}>
-                <Ionicons name="medical" size={32} color={colors.navy} />
-              </View>
-              <Text style={styles.roleTitle}>{t('auth.splash.vetButton')}</Text>
-              <Text style={styles.roleDescription}>Gérez vos patients en ligne</Text>
-              <Ionicons name="arrow-forward" size={20} color={colors.navy} style={styles.roleArrow} />
+              <Text style={styles.secondaryButtonText}>Créer un compte</Text>
             </TouchableOpacity>
-          </View>
-          
-          <View style={styles.progressIndicator}>
-            <View style={styles.progressDot} />
-            <View style={styles.progressDotInactive} />
-            <View style={styles.progressDotInactive} />
           </View>
         </View>
       </View>
@@ -97,16 +98,11 @@ const styles = StyleSheet.create({
     height: 160,
     marginBottom: spacing.md,
   },
-  appName: {
-    fontSize: typography.fontSize.xxxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.navy,
-    marginBottom: spacing.xs,
-  },
   tagline: {
     fontSize: typography.fontSize.md,
     color: colors.gray,
     textAlign: 'center',
+    marginTop: spacing.sm,
   },
   contentContainer: {
     flex: 1,
@@ -165,33 +161,63 @@ const styles = StyleSheet.create({
     color: colors.navy,
   },
   roleDescription: {
-    position: 'absolute',
-    left: 92,
-    bottom: spacing.lg,
     fontSize: typography.fontSize.xs,
     color: colors.gray,
+    marginTop: spacing.xs,
+    lineHeight: 16,
   },
   roleArrow: {
     marginLeft: spacing.sm,
   },
-  progressIndicator: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: spacing.xxl,
+  featuresContainer: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
     gap: spacing.sm,
   },
-  progressDot: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.sm,
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  progressDotInactive: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.navy,
-    borderRadius: borderRadius.sm,
-    opacity: 0.5,
+  featureText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  actionsContainer: {
+    gap: spacing.md,
+    marginTop: spacing.xl,
+  },
+  primaryButton: {
+    backgroundColor: colors.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    borderRadius: borderRadius.xl,
+    gap: spacing.sm,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  primaryButtonText: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.teal,
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.white,
+    paddingVertical: spacing.lg,
+    borderRadius: borderRadius.xl,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
   },
 });

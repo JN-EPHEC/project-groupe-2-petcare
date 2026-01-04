@@ -1,25 +1,217 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, Image, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, Image, TextInput, ActivityIndicator, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import { demoAuth } from '../../services/demoAuth';
+import { PremiumBadge } from '../../components';
+import { getAllVets } from '../../services/firestoreService';
+import * as Location from 'expo-location';
 
 interface EmergencyScreenProps {
   navigation: any;
 }
 
+interface VetWithDistance extends any {
+  calculatedDistance?: number;
+}
+
 export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const allVets = demoAuth.getAllVets();
+  const [allVets, setAllVets] = useState<VetWithDistance[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [noEmergencyVetsAvailable, setNoEmergencyVetsAvailable] = useState(false);
+  
+  useEffect(() => {
+    loadVetsWithLocation();
+  }, []);
+  
+  // Fonction pour calculer la distance entre deux coordonnées (formule de Haversine)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+  
+  // Fonction pour géocoder une adresse (simulé pour l'instant)
+  const geocodeAddress = async (address: string): Promise<{ latitude: number; longitude: number } | null> => {
+    // Coordonnées approximatives de quelques villes belges pour la démo
+    const belgianCities: { [key: string]: { latitude: number; longitude: number } } = {
+      'bruxelles': { latitude: 50.8503, longitude: 4.3517 },
+      'brussels': { latitude: 50.8503, longitude: 4.3517 },
+      'anvers': { latitude: 51.2194, longitude: 4.4025 },
+      'antwerp': { latitude: 51.2194, longitude: 4.4025 },
+      'gand': { latitude: 51.0543, longitude: 3.7174 },
+      'ghent': { latitude: 51.0543, longitude: 3.7174 },
+      'charleroi': { latitude: 50.4108, longitude: 4.4446 },
+      'liège': { latitude: 50.6326, longitude: 5.5797 },
+      'bruges': { latitude: 51.2093, longitude: 3.2247 },
+      'namur': { latitude: 50.4674, longitude: 4.8720 },
+      'leuven': { latitude: 50.8798, longitude: 4.7005 },
+      'mons': { latitude: 50.4542, longitude: 3.9565 },
+      'wavre': { latitude: 50.7167, longitude: 4.6167 },
+      'ottignies': { latitude: 50.6667, longitude: 4.5667 },
+      'bierges': { latitude: 50.7111, longitude: 4.5978 },
+      'limal': { latitude: 50.6897, longitude: 4.5722 },
+    };
+    
+    const normalizedAddress = address.toLowerCase();
+    for (const [city, coords] of Object.entries(belgianCities)) {
+      if (normalizedAddress.includes(city)) {
+        return coords;
+      }
+    }
+    return null;
+  };
+  
+  const loadVetsWithLocation = async () => {
+    try {
+      console.log('🏥 Chargement des vétérinaires...');
+      setIsLoading(true);
+      setIsSearching(true);
+      
+      // Charger les vétérinaires
+      console.log('🔄 Appel de getAllVets()...');
+      const vetsData = await getAllVets();
+      console.log('📊 Vétérinaires chargés:', vetsData.length);
+      console.log('📊 Vétérinaires data:', JSON.stringify(vetsData, null, 2));
+      
+      if (vetsData.length === 0) {
+        console.error('❌❌❌ AUCUN vétérinaire retourné par getAllVets() ❌❌❌');
+        console.error('Vérifiez que :');
+        console.error('1. Des vétérinaires existent dans Firestore (collection users)');
+        console.error('2. Ils ont un champ role = "vet"');
+        console.error('3. Ils ont un champ approved = true (ou pas de champ approved)');
+        setIsLoading(false);
+        setIsSearching(false);
+        setAllVets([]); // Important : mettre un tableau vide
+        return;
+      }
+      
+      // Simuler une recherche intelligente
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Essayer d'obtenir la localisation de l'utilisateur
+      let userCoords: { latitude: number; longitude: number } | null = null;
+      try {
+        if (Platform.OS !== 'web') {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const location = await Location.getCurrentPositionAsync({});
+            userCoords = {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude
+            };
+            setUserLocation(userCoords);
+            console.log('📍 Position utilisateur:', userCoords);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Impossible d\'obtenir la localisation:', error);
+      }
+      
+      // Calculer les distances si on a la position
+      const vetsWithDistance: VetWithDistance[] = await Promise.all(
+        vetsData.map(async (vet) => {
+          let calculatedDistance: number | undefined = undefined;
+          
+          if (userCoords && vet.location) {
+            const vetCoords = await geocodeAddress(vet.location);
+            if (vetCoords) {
+              calculatedDistance = calculateDistance(
+                userCoords.latitude,
+                userCoords.longitude,
+                vetCoords.latitude,
+                vetCoords.longitude
+              );
+            }
+          }
+          
+          return {
+            ...vet,
+            calculatedDistance
+          };
+        })
+      );
+      
+      // Trier intelligemment :
+      // 1. Vétérinaires de garde d'abord
+      // 2. Puis par distance (si disponible)
+      // 3. Puis par premium
+      // 4. Puis par rating
+      const sorted = vetsWithDistance.sort((a, b) => {
+        // Priorité aux vétérinaires de garde
+        if (a.emergencyAvailable && !b.emergencyAvailable) return -1;
+        if (!a.emergencyAvailable && b.emergencyAvailable) return 1;
+        
+        // Si les deux sont de garde (ou non), trier par distance
+        if (a.calculatedDistance !== undefined && b.calculatedDistance !== undefined) {
+          return a.calculatedDistance - b.calculatedDistance;
+        }
+        if (a.calculatedDistance !== undefined) return -1;
+        if (b.calculatedDistance !== undefined) return 1;
+        
+        // Si pas de distance, trier par premium
+        if (a.isPremiumPartner && !b.isPremiumPartner) return -1;
+        if (!a.isPremiumPartner && b.isPremiumPartner) return 1;
+        
+        // Enfin par rating
+        return (b.rating || 0) - (a.rating || 0);
+      });
+      
+      // Compter les vétérinaires de garde
+      const onDutyVets = sorted.filter(v => v.emergencyAvailable);
+      console.log('🚨 Vétérinaires de garde:', onDutyVets.length);
+      console.log('📊 Vétérinaires triés total:', sorted.length);
+      
+      // Si aucun vétérinaire de garde, afficher tous les vétérinaires de manière aléatoire
+      let finalVets = sorted;
+      if (onDutyVets.length === 0) {
+        console.log('⚠️ Aucun vétérinaire de garde trouvé - affichage aléatoire de tous les vétérinaires');
+        console.log('📋 Nombre de vétérinaires à afficher:', sorted.length);
+        setNoEmergencyVetsAvailable(true);
+        
+        // Mélanger aléatoirement tous les vétérinaires
+        const shuffled = [...sorted].sort(() => Math.random() - 0.5);
+        console.log('🔀 Vétérinaires mélangés:', shuffled.length);
+        
+        // Marquer tous les vétérinaires comme "disponibles en urgence" pour l'affichage
+        finalVets = shuffled.map(vet => ({
+          ...vet,
+          emergencyAvailable: true // Force l'affichage comme "disponible"
+        }));
+        console.log('✅ Vétérinaires forcés comme disponibles:', finalVets.length);
+      } else {
+        console.log('✅ Vétérinaires de garde trouvés - affichage normal');
+        setNoEmergencyVetsAvailable(false);
+      }
+      
+      setAllVets(finalVets);
+      console.log('✅ setAllVets appelé avec', finalVets.length, 'vétérinaires');
+      console.log('📋 Final vets:', finalVets);
+      
+    } catch (error) {
+      console.error('❌ Error loading vets:', error);
+    } finally {
+      setIsLoading(false);
+      setIsSearching(false);
+    }
+  };
   
   // Filter vets by search query
   const vets = searchQuery.trim()
     ? allVets.filter(vet => 
-        vet.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vet.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vet.location.toLowerCase().includes(searchQuery.toLowerCase())
+        (vet.firstName + ' ' + vet.lastName).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (vet.specialty || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (vet.location || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     : allVets;
 
@@ -78,42 +270,121 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
         </View>
       </View>
 
+      {/* Loading de recherche intelligente */}
+      {isSearching && (
+        <View style={styles.searchingContainer}>
+          <ActivityIndicator size="large" color={colors.teal} />
+          <Text style={styles.searchingTitle}>🚨 Recherche d'urgence...</Text>
+          <Text style={styles.searchingText}>Recherche des vétérinaires de garde à proximité</Text>
+        </View>
+      )}
+
+      {/* Compteur de vétérinaires de garde */}
+      {!isLoading && !isSearching && (
+        <View style={[styles.onDutyBanner, noEmergencyVetsAvailable && styles.fallbackBanner]}>
+          <Ionicons name="medical" size={20} color={noEmergencyVetsAvailable ? '#FF9800' : colors.red} />
+          <Text style={styles.onDutyText}>
+            {noEmergencyVetsAvailable 
+              ? `${allVets.length} vétérinaire(s) disponible(s) pour urgence`
+              : `${allVets.filter(v => v.emergencyAvailable).length} vétérinaire(s) de garde disponible(s)`
+            }
+          </Text>
+        </View>
+      )}
+
       <View style={styles.vetsContainer}>
-        {vets.length === 0 ? (
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.teal} />
+            <Text style={styles.loadingText}>Chargement des vétérinaires...</Text>
+          </View>
+        ) : allVets.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="alert-circle-outline" size={64} color={colors.red} />
+            <Text style={styles.emptyTitle}>Aucun vétérinaire disponible</Text>
+            <Text style={styles.emptyText}>
+              Aucun vétérinaire n'est enregistré dans notre base de données pour le moment.
+            </Text>
+          </View>
+        ) : vets.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="search-outline" size={64} color={colors.gray} />
-            <Text style={styles.emptyTitle}>Aucun vétérinaire trouvé</Text>
+            <Text style={styles.emptyTitle}>Aucun résultat</Text>
             <Text style={styles.emptyText}>
               Essayez de rechercher avec un autre nom, spécialité ou lieu
             </Text>
           </View>
         ) : (
           vets.map((vet) => (
-            <View key={vet.id} style={styles.vetCard}>
-            <Image 
-              source={vet.avatarLocal ? vet.avatarLocal : { uri: vet.avatarUrl }}
-              style={styles.vetImage}
-            />
-            
-            <View style={styles.vetInfo}>
-              <Text style={styles.vetName}>{vet.name}</Text>
-              <Text style={styles.vetSpecialty}>{vet.specialty}</Text>
-              
-              <View style={styles.locationContainer}>
-                <Ionicons name="location" size={16} color={colors.black} />
-                <Text style={styles.locationText}>{vet.location}</Text>
-                <MaterialIcons name="straighten" size={16} color={colors.black} style={styles.distanceIcon} />
-                <Text style={styles.distanceText}>{vet.distance}</Text>
-              </View>
-            </View>
-
             <TouchableOpacity 
-              style={styles.callButton}
-              onPress={() => handleCall(vet.phone)}
+              key={vet.id} 
+              style={[
+                styles.vetCard,
+                vet.emergencyAvailable && styles.vetCardOnDuty
+              ]}
+              onPress={() => navigation.navigate('VetDetails', { vet })}
+              activeOpacity={0.7}
             >
-              <Ionicons name="call" size={26} color={colors.white} />
+              {vet.avatarUrl ? (
+                <Image 
+                  source={{ uri: vet.avatarUrl }}
+                  style={styles.vetImage}
+                />
+              ) : (
+                <View style={[styles.vetImage, styles.vetImagePlaceholder]}>
+                  <Ionicons name="person" size={32} color={colors.white} />
+                </View>
+              )}
+              
+              <View style={styles.vetInfo}>
+                <View style={styles.vetNameRow}>
+                  <Text style={styles.vetName}>
+                    {vet.firstName} {vet.lastName}
+                  </Text>
+                  {vet.isPremiumPartner && (
+                    <PremiumBadge size="small" showText={false} />
+                  )}
+                  {vet.emergencyAvailable && (
+                    <View style={styles.onDutyBadge}>
+                      <Ionicons name="medical" size={12} color={colors.white} />
+                      <Text style={styles.onDutyBadgeText}>DE GARDE</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.vetSpecialty}>{vet.specialty || 'Vétérinaire'}</Text>
+                
+                <View style={styles.locationContainer}>
+                  <Ionicons name="location" size={16} color={colors.black} />
+                  <Text style={styles.locationText}>{vet.location}</Text>
+                  {vet.calculatedDistance !== undefined ? (
+                    <>
+                      <MaterialIcons name="straighten" size={16} color={colors.teal} style={styles.distanceIcon} />
+                      <Text style={[styles.distanceText, styles.distanceCalculated]}>
+                        {vet.calculatedDistance.toFixed(1)} km
+                      </Text>
+                    </>
+                  ) : vet.distance ? (
+                    <>
+                      <MaterialIcons name="straighten" size={16} color={colors.black} style={styles.distanceIcon} />
+                      <Text style={styles.distanceText}>{vet.distance}</Text>
+                    </>
+                  ) : null}
+                </View>
+              </View>
+
+              <TouchableOpacity 
+                style={[
+                  styles.callButton,
+                  vet.emergencyAvailable && styles.callButtonOnDuty
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleCall(vet.phone);
+                }}
+              >
+                <Ionicons name="call" size={26} color={colors.white} />
+              </TouchableOpacity>
             </TouchableOpacity>
-          </View>
           ))
         )}
       </View>
@@ -217,8 +488,28 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 10,
   },
+  vetImagePlaceholder: {
+    backgroundColor: colors.teal,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   vetInfo: {
     flex: 1,
+  },
+  vetNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  loadingContainer: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
+    marginTop: spacing.md,
   },
   vetName: {
     fontSize: typography.fontSize.md,
@@ -272,6 +563,74 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
+  },
+  searchingContainer: {
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    backgroundColor: '#FFF9E6',
+    marginHorizontal: spacing.xl,
+    marginVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  searchingTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    marginTop: spacing.md,
+  },
+  searchingText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  onDutyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFEBEE',
+    paddingVertical: spacing.md,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  fallbackBanner: {
+    backgroundColor: '#FFF3E0', // Orange clair
+  },
+  onDutyText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.red,
+  },
+  vetCardOnDuty: {
+    borderWidth: 2,
+    borderColor: colors.red,
+    backgroundColor: '#FFF5F5',
+  },
+  onDutyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.red,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 2,
+  },
+  onDutyBadgeText: {
+    fontSize: 10,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  callButtonOnDuty: {
+    backgroundColor: colors.red,
+  },
+  distanceCalculated: {
+    color: colors.teal,
+    fontWeight: typography.fontWeight.bold,
   },
 });
 

@@ -146,24 +146,12 @@ export const VetSignupScreen: React.FC<VetSignupScreenProps> = ({ navigation }) 
     if (!validateEmail(email)) {
       isValid = false;
     }
-    if (!phone) {
-      setPhoneError(t('auth.validation.phoneRequired'));
-      isValid = false;
-    }
     if (!specialty) {
-      setSpecialtyError('Specialité requise');
+      setSpecialtyError('Spécialité requise');
       isValid = false;
     }
     if (!clinicName) {
       setClinicNameError('Nom de la clinique requis');
-      isValid = false;
-    }
-    if (!clinicAddress) {
-      setClinicAddressError('Adresse de la clinique requise');
-      isValid = false;
-    }
-    if (!experience) {
-      setExperienceError('Années d\'expérience requises');
       isValid = false;
     }
     if (!validatePassword(password)) {
@@ -180,21 +168,17 @@ export const VetSignupScreen: React.FC<VetSignupScreenProps> = ({ navigation }) 
         firstName,
         lastName,
         email,
-        phone,
+        phone: phone || '',
         location: location || 'Belgique',
         specialty,
         clinicName,
-        clinicAddress,
-        experience,
-        licenseNumber,
+        clinicAddress: clinicAddress || '',
+        experience: experience || '0',
+        licenseNumber: licenseNumber || '',
         password,
       });
-      // Rediriger vers l'écran de confirmation en attente d'approbation
-      navigation.navigate('EmailVerification', { 
-        email, 
-        isVet: true,
-        message: 'Votre compte vétérinaire a été créé avec succès ! Vous recevrez une notification une fois qu\'un administrateur aura approuvé votre compte.'
-      });
+      // Rediriger vers le wizard d'onboarding vétérinaire
+      navigation.navigate('VetOnboarding');
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error);
       setSignupError(errorMessage);
@@ -222,9 +206,9 @@ export const VetSignupScreen: React.FC<VetSignupScreenProps> = ({ navigation }) 
             </View>
             <Text style={styles.subtitle}>Créez votre compte professionnel</Text>
             <View style={styles.infoBox}>
-              <Ionicons name="information-circle" size={20} color={colors.teal} />
+              <Ionicons name="mail" size={20} color={colors.teal} />
               <Text style={styles.infoText}>
-                Votre compte sera vérifié par un administrateur avant activation
+                Vous recevrez un email de vérification après l'inscription
               </Text>
             </View>
           </View>
@@ -272,23 +256,7 @@ export const VetSignupScreen: React.FC<VetSignupScreenProps> = ({ navigation }) 
               success={email.length > 0 && !emailError}
             />
 
-            <Input
-              value={phone}
-              onChangeText={(text) => handleFieldChange('phone', text)}
-              placeholder="Téléphone"
-              keyboardType="phone-pad"
-              iconLeft="call"
-              error={phoneError}
-              success={phone.length > 0 && !phoneError}
-            />
-
-            <Input
-              value={location}
-              onChangeText={(text) => handleFieldChange('location', text)}
-              placeholder="Ville / Région"
-              iconLeft="location"
-              success={location.length > 0}
-            />
+            {/* Téléphone et localisation peuvent être ajoutés plus tard dans le profil */}
 
             <Text style={styles.sectionTitle}>Informations professionnelles</Text>
 
@@ -310,39 +278,17 @@ export const VetSignupScreen: React.FC<VetSignupScreenProps> = ({ navigation }) 
               success={clinicName.length > 0 && !clinicNameError}
             />
 
-            <Input
-              value={clinicAddress}
-              onChangeText={(text) => handleFieldChange('clinicAddress', text)}
-              placeholder="Adresse de la clinique"
-              iconLeft="location-outline"
-              error={clinicAddressError}
-              success={clinicAddress.length > 0 && !clinicAddressError}
-            />
+            {/* Champs optionnels supprimés pour raccourcir le formulaire */}
 
-            <Input
-              value={experience}
-              onChangeText={(text) => handleFieldChange('experience', text)}
-              placeholder="Années d'expérience"
-              keyboardType="numeric"
-              iconLeft="time"
-              error={experienceError}
-              success={experience.length > 0 && !experienceError}
-            />
-
-            <Input
-              value={licenseNumber}
-              onChangeText={(text) => handleFieldChange('licenseNumber', text)}
-              placeholder="Numéro de licence (optionnel)"
-              iconLeft="card"
-              success={licenseNumber.length > 0}
-            />
-
-            <Text style={styles.sectionTitle}>Sécurité</Text>
+            <View style={styles.securitySection}>
+              <Ionicons name="shield-checkmark" size={24} color={colors.teal} />
+              <Text style={styles.sectionTitle}>🔒 Sécurité - Créez votre mot de passe</Text>
+            </View>
 
             <Input
               value={password}
               onChangeText={(text) => handleFieldChange('password', text)}
-              placeholder="Mot de passe"
+              placeholder="Mot de passe (min. 8 caractères)"
               secureTextEntry
               iconLeft="lock-closed"
               error={passwordError}
@@ -455,6 +401,16 @@ const styles = StyleSheet.create({
   formContainer: {
     marginBottom: spacing.md,
   },
+  securitySection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.lightBlue,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
@@ -490,4 +446,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
   },
 });
+
+
 

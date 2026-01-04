@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
@@ -96,7 +96,16 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
           style={styles.profileButton}
           onPress={() => navigation.navigate('VetProfile')}
         >
-          <Ionicons name="person-circle" size={40} color={colors.teal} />
+          {user?.avatarUrl ? (
+            <Image 
+              source={{ uri: user.avatarUrl }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <View style={styles.profilePlaceholder}>
+              <Ionicons name="person" size={28} color={colors.white} />
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -182,32 +191,39 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
           </TouchableOpacity>
         </View>
 
-        {todayAppointments.map((appointment) => (
-          <TouchableOpacity key={appointment.id} style={styles.appointmentCard}>
-            <View style={styles.appointmentTime}>
-              <Ionicons name="time" size={20} color={colors.teal} />
-              <Text style={styles.timeText}>{appointment.time}</Text>
-            </View>
+        {todayAppointments.length > 0 ? (
+          todayAppointments.map((appointment) => (
+            <TouchableOpacity key={appointment.id} style={styles.appointmentCard}>
+              <View style={styles.appointmentTime}>
+                <Ionicons name="time" size={20} color={colors.teal} />
+                <Text style={styles.timeText}>{appointment.time}</Text>
+              </View>
 
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.petName}>🐾 {appointment.petName}</Text>
-              <Text style={styles.ownerName}>Propriétaire: {appointment.ownerName}</Text>
-              <View style={styles.appointmentMeta}>
-                <View style={[styles.typeBadge, { backgroundColor: colors.lightBlue }]}>
-                  <Text style={styles.typeBadgeText}>{appointment.type}</Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
-                  <View style={[styles.statusDot, { backgroundColor: getStatusColor(appointment.status) }]} />
-                  <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-                    {appointment.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                  </Text>
+              <View style={styles.appointmentInfo}>
+                <Text style={styles.petName}>🐾 {appointment.petName}</Text>
+                <Text style={styles.ownerName}>Propriétaire: {appointment.ownerName}</Text>
+                <View style={styles.appointmentMeta}>
+                  <View style={[styles.typeBadge, { backgroundColor: colors.lightBlue }]}>
+                    <Text style={styles.typeBadgeText}>{appointment.type}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
+                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(appointment.status) }]} />
+                    <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
+                      {appointment.status === 'confirmed' ? 'Confirmé' : 'En attente'}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <Ionicons name="chevron-forward" size={24} color={colors.gray} />
-          </TouchableOpacity>
-        ))}
+              <Ionicons name="chevron-forward" size={24} color={colors.gray} />
+            </TouchableOpacity>
+          ))
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={48} color={colors.gray} />
+            <Text style={styles.emptyStateText}>Aucun rendez-vous aujourd'hui</Text>
+          </View>
+        )}
       </View>
 
       {/* Pending Requests */}
@@ -219,33 +235,40 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
           </View>
         </View>
 
-        {pendingRequests.map((request) => (
-          <View key={request.id} style={styles.requestCard}>
-            <View style={styles.requestIcon}>
-              <Ionicons name="alert-circle" size={28} color="#FFB347" />
-            </View>
+        {pendingRequests.length > 0 ? (
+          pendingRequests.map((request) => (
+            <View key={request.id} style={styles.requestCard}>
+              <View style={styles.requestIcon}>
+                <Ionicons name="alert-circle" size={28} color="#FFB347" />
+              </View>
 
-            <View style={styles.requestInfo}>
-              <Text style={styles.petName}>{request.petName}</Text>
-              <Text style={styles.ownerName}>{request.ownerName}</Text>
-              <Text style={styles.requestDate}>
-                Demandé le {new Date(request.requestDate).toLocaleDateString('fr-FR')}
-              </Text>
-              <Text style={styles.preferredDate}>
-                Souhaité pour le {new Date(request.preferredDate).toLocaleDateString('fr-FR')}
-              </Text>
-            </View>
+              <View style={styles.requestInfo}>
+                <Text style={styles.petName}>{request.petName}</Text>
+                <Text style={styles.ownerName}>{request.ownerName}</Text>
+                <Text style={styles.requestDate}>
+                  Demandé le {new Date(request.requestDate).toLocaleDateString('fr-FR')}
+                </Text>
+                <Text style={styles.preferredDate}>
+                  Souhaité pour le {new Date(request.preferredDate).toLocaleDateString('fr-FR')}
+                </Text>
+              </View>
 
-            <View style={styles.requestActions}>
-              <TouchableOpacity style={styles.acceptButton}>
-                <Ionicons name="checkmark-circle" size={28} color="#4ECDC4" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.rejectButton}>
-                <Ionicons name="close-circle" size={28} color="#FF6B6B" />
-              </TouchableOpacity>
+              <View style={styles.requestActions}>
+                <TouchableOpacity style={styles.acceptButton}>
+                  <Ionicons name="checkmark-circle" size={28} color="#4ECDC4" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.rejectButton}>
+                  <Ionicons name="close-circle" size={28} color="#FF6B6B" />
+                </TouchableOpacity>
+              </View>
             </View>
+          ))
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="checkmark-done-circle-outline" size={48} color={colors.gray} />
+            <Text style={styles.emptyStateText}>Aucune demande en attente</Text>
           </View>
-        ))}
+        )}
       </View>
 
       <View style={styles.bottomSpacer} />
@@ -278,6 +301,23 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     padding: spacing.xs,
+  },
+  profileImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: colors.teal,
+  },
+  profilePlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.teal,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.teal,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -483,6 +523,17 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: spacing.xxl,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+    gap: spacing.md,
+  },
+  emptyStateText: {
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
+    fontStyle: 'italic',
   },
 });
 

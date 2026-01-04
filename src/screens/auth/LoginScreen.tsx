@@ -60,7 +60,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const handleLogin = async () => {
-    const isEmailValid = validateEmail(email);
+    // Convertir "admin" en vraie adresse email admin
+    let actualEmail = email.trim();
+    if (actualEmail.toLowerCase() === 'admin') {
+      actualEmail = 'soumia.ettouilpro@gmail.com';
+    }
+
+    const isEmailValid = validateEmail(actualEmail);
     const isPasswordValid = validatePassword(password);
 
     if (!isEmailValid || !isPasswordValid) {
@@ -68,12 +74,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     }
 
     try {
-      await signIn(email, password);
+      await signIn(actualEmail, password);
       navigation.navigate('MainTabs');
     } catch (error: any) {
       // Si l'email n'est pas vérifié, rediriger vers l'écran de vérification
       if (error?.code === 'auth/email-not-verified') {
-        navigation.navigate('EmailVerification', { email: error.email || email });
+        navigation.navigate('EmailVerification', { email: error.email || actualEmail });
       } else {
         const errorMessage = getFirebaseErrorMessage(error);
         setLoginError(errorMessage);
@@ -82,28 +88,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const handleSignup = () => {
-    navigation.navigate('Signup');
+    navigation.navigate('SignupChoice');
   };
 
   const handleForgotPassword = () => {
     navigation.navigate('ForgotPassword');
-  };
-
-  const fillDemoCredentials = (type: 'admin' | 'owner' | 'vet') => {
-    setLoginError('');
-    setEmailError('');
-    setPasswordError('');
-    
-    if (type === 'admin') {
-      setEmail('admin@petcare.com');
-      setPassword('admin123');
-    } else if (type === 'owner') {
-      setEmail('owner@petcare.com');
-      setPassword('owner123');
-    } else if (type === 'vet') {
-      setEmail('vet@petcare.com');
-      setPassword('vet123');
-    }
   };
 
   return (
@@ -111,7 +100,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        style={Platform.OS === 'web' ? { flex: 1 } : {}}
+      >
         <View style={styles.content}>
           <View style={styles.headerSection}>
             <Text style={styles.title}>{t('auth.login.title')}</Text>
@@ -162,39 +155,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             loading={isLoading}
           />
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OU</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.demoAccountsContainer}>
-            <Text style={styles.demoTitle}>{t('auth.login.demoTitle')}</Text>
-            <View style={styles.demoButtons}>
-              <TouchableOpacity
-                style={styles.demoChip}
-                onPress={() => fillDemoCredentials('owner')}
-              >
-                <Ionicons name="paw" size={16} color={colors.teal} />
-                <Text style={styles.demoChipText}>{t('auth.login.ownerDemo')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.demoChip}
-                onPress={() => fillDemoCredentials('vet')}
-              >
-                <Ionicons name="medical" size={16} color={colors.navy} />
-                <Text style={styles.demoChipText}>{t('auth.login.vetDemo')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.demoChip}
-                onPress={() => fillDemoCredentials('admin')}
-              >
-                <Ionicons name="shield-checkmark" size={16} color="#FF9800" />
-                <Text style={styles.demoChipText}>{t('auth.login.adminDemo')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
           <View style={styles.signupSection}>
             <Text style={styles.noAccountText}>{t('auth.login.noAccount')}</Text>
             <TouchableOpacity onPress={handleSignup}>
@@ -211,6 +171,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+    ...(Platform.OS === 'web' ? {
+      height: '100vh',
+      overflow: 'hidden',
+    } : {}),
   },
   scrollContent: {
     flexGrow: 1,
@@ -265,60 +229,6 @@ const styles = StyleSheet.create({
   loginButton: {
     width: '100%',
     marginBottom: spacing.lg,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.lightGray,
-  },
-  dividerText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.gray,
-    marginHorizontal: spacing.md,
-    fontWeight: typography.fontWeight.semiBold,
-  },
-  demoAccountsContainer: {
-    padding: spacing.md,
-    backgroundColor: colors.lightBlue,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
-  },
-  demoTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semiBold,
-    color: colors.navy,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  demoButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-  },
-  demoChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.xl,
-    gap: spacing.xs,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  demoChipText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.navy,
-    fontWeight: typography.fontWeight.semiBold,
   },
   signupSection: {
     flexDirection: 'row',

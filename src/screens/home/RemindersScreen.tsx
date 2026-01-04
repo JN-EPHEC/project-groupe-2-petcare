@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { demoAuth } from '../../services/demoAuth';
+import { getRemindersByOwnerId } from '../../services/firestoreService';
 
 interface RemindersScreenProps {
   navigation: any;
@@ -18,12 +18,24 @@ interface ReminderWithMonth {
 
 export const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const { currentPet } = useAuth();
+  const { currentPet, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const allReminders = currentPet 
-    ? demoAuth.getRemindersByPet(currentPet.id)
-    : [];
+  const [allReminders, setAllReminders] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadReminders = async () => {
+      if (user?.id) {
+        try {
+          const reminders = await getRemindersByOwnerId(user.id);
+          setAllReminders(reminders);
+        } catch (error) {
+          console.error('Error loading reminders:', error);
+          setAllReminders([]);
+        }
+      }
+    };
+    loadReminders();
+  }, [user?.id]);
 
   // Filter reminders by search query
   const reminders = searchQuery.trim()

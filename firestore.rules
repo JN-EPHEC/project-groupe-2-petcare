@@ -20,17 +20,25 @@ service cloud.firestore {
     
     // Règles pour la collection users
     match /users/{userId} {
-      // Lecture: utilisateur lui-même, vets, ou admins
-      allow read: if isOwner(userId) || hasRole('vet') || hasRole('admin');
+      // Lecture: 
+      // - Tous les utilisateurs authentifiés peuvent lire les profils
+      // (nécessaire pour la recherche de vétérinaires et les fonctionnalités sociales)
+      allow read: if isAuthenticated();
       
-      // Écriture: utilisateur lui-même ou admin
-      allow write: if isOwner(userId) || hasRole('admin');
+      // Création/Modification: utilisateur lui-même ou admin
+      allow create, update: if isOwner(userId) || hasRole('admin');
+      
+      // Suppression: utilisateur lui-même ou admin (pour permettre la suppression du compte)
+      allow delete: if isOwner(userId) || hasRole('admin');
     }
     
     // Règles pour la collection pets
     match /pets/{petId} {
-      // Lecture: propriétaire, vets, ou admins
-      allow read: if isOwner(resource.data.ownerId) || hasRole('vet') || hasRole('admin');
+      // Lecture: propriétaire, vétérinaire attitré (via vetId), tous les vets, ou admins
+      allow read: if isOwner(resource.data.ownerId) || 
+                     (hasRole('vet') && resource.data.vetId == request.auth.uid) ||
+                     hasRole('vet') || 
+                     hasRole('admin');
       
       // Écriture: propriétaire ou admin
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
@@ -42,12 +50,20 @@ service cloud.firestore {
       // Lecture: propriétaire, vets, ou admins
       allow read: if isOwner(resource.data.ownerId) || hasRole('vet') || hasRole('admin');
       
-      // Écriture: propriétaire, vets, ou admin
+      // Création: propriétaire, vets, ou admin
       allow create: if isAuthenticated() && 
                        (request.resource.data.ownerId == request.auth.uid || 
                         hasRole('vet') || 
                         hasRole('admin'));
-      allow update, delete: if isOwner(resource.data.ownerId) || hasRole('vet') || hasRole('admin');
+      
+      // Modification: propriétaire, vets, ou admin
+      allow update: if isOwner(resource.data.ownerId) || hasRole('vet') || hasRole('admin');
+      
+      // Suppression: propriétaire (via ownerId OU si le pet appartient à l'utilisateur), vets, ou admin
+      allow delete: if isOwner(resource.data.ownerId) || 
+                       (isAuthenticated() && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                       hasRole('vet') || 
+                       hasRole('admin');
     }
     
     // Règles pour la collection vaccinations
@@ -55,8 +71,14 @@ service cloud.firestore {
       // Lecture: propriétaire, vets, ou admins
       allow read: if isOwner(resource.data.ownerId) || hasRole('vet') || hasRole('admin');
       
-      // Écriture: vets ou admin
-      allow write: if hasRole('vet') || hasRole('admin');
+      // Création/Modification: vets ou admin
+      allow create, update: if hasRole('vet') || hasRole('admin');
+      
+      // Suppression: propriétaire (via ownerId OU si le pet appartient à l'utilisateur), vets, ou admin
+      allow delete: if isOwner(resource.data.ownerId) || 
+                       (isAuthenticated() && resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                       hasRole('vet') || 
+                       hasRole('admin');
     }
     
     // Règles pour la collection reminders
@@ -95,9 +117,16 @@ service cloud.firestore {
       // Lecture: propriétaire, vets, ou admin
       allow read: if isOwner(resource.data.ownerId) || hasRole('vet') || hasRole('admin');
       
-      // Écriture: propriétaire ou admin
+      // Création: propriétaire ou admin
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.ownerId) || hasRole('admin');
+      
+      // Modification: propriétaire ou admin
+      allow update: if isOwner(resource.data.ownerId) || hasRole('admin');
+      
+      // Suppression: propriétaire (via ownerId OU si le pet appartient à l'utilisateur) ou admin
+      allow delete: if isOwner(resource.data.ownerId) || 
+                       (isAuthenticated() && resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                       hasRole('admin');
     }
     
     // Règles pour la collection vets (vétérinaires approuvés)
@@ -117,8 +146,101 @@ service cloud.firestore {
       // Création: utilisateurs authentifiés
       allow create: if isAuthenticated();
       
-      // Modification/Suppression: admin uniquement
-      allow update, delete: if hasRole('admin');
+      // Modification: admin uniquement
+      allow update: if hasRole('admin');
+      
+      // Suppression: demandeur (pour suppression de compte) ou admin
+      allow delete: if isOwner(resource.data.userId) || 
+                       isOwner(resource.data.vetId) || 
+                       hasRole('admin');
+    }
+    
+    // Règles pour la collection subscriptions (Abonnements Premium)
+    match /subscriptions/{subscriptionId} {
+      // Lecture: utilisateur propriétaire ou admin
+      allow read: if isOwner(resource.data.userId) || hasRole('admin');
+      
+      // Création: utilisateur authentifié pour son propre abonnement
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Modification: admin uniquement (ou système)
+      allow update: if hasRole('admin');
+      
+      // Suppression: admin uniquement
+      allow delete: if hasRole('admin');
+    }
+    
+    // ========================================
+    // Règles pour Stripe Extension Firebase
+    // ========================================
+    
+    // Règles pour les customers Stripe (gestion des paiements)
+    match /customers/{uid} {
+      // Lecture: utilisateur lui-même uniquement
+      allow read: if request.auth.uid == uid;
+
+      // Checkout sessions (création de sessions de paiement)
+      match /checkout_sessions/{id} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      
+      // Subscriptions Stripe (abonnements actifs)
+      match /subscriptions/{id} {
+        allow read: if request.auth.uid == uid;
+      }
+      
+      // Payments (historique des paiements)
+      match /payments/{id} {
+        allow read: if request.auth.uid == uid;
+      }
+    }
+
+    // Règles pour les produits Stripe (lecture publique pour affichage)
+    match /products/{id} {
+      allow read: if true;
+
+      // Prix des produits
+      match /prices/{id} {
+        allow read: if true;
+      }
+
+      // Taux de taxe
+      match /tax_rates/{id} {
+        allow read: if true;
+      }
+    }
+    
+    // ========================================
+    // Règles pour les articles de blog Premium
+    // ========================================
+    match /blog_articles/{articleId} {
+      // Lecture: tous les utilisateurs authentifiés
+      allow read: if isAuthenticated();
+      
+      // Écriture: admins uniquement
+      allow write: if hasRole('admin');
+    }
+    
+    // ========================================
+    // Règles pour le partage sécurisé des carnets d'animaux
+    // ========================================
+    match /sharedPets/{shareId} {
+      // Lecture: propriétaire de l'animal ou utilisateur avec le token
+      allow read: if isAuthenticated() && 
+                     (isOwner(resource.data.ownerId) || 
+                      request.auth.uid == resource.data.sharedWithUserId);
+      
+      // Création: propriétaire de l'animal uniquement
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      
+      // Modification: propriétaire de l'animal uniquement
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      
+      // Suppression: propriétaire (via ownerId OU si le pet appartient à l'utilisateur)
+      allow delete: if isAuthenticated() && 
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid));
     }
     
     // Par défaut, tout refuser

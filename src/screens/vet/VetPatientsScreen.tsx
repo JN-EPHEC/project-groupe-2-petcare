@@ -1,87 +1,98 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
+import { useAuth } from '../../context/AuthContext';
+import { getPetsByVetId, Pet, getUserById } from '../../services/firestoreService';
 
 interface VetPatientsScreenProps {
   navigation: any;
 }
 
+interface PatientWithOwner extends Pet {
+  ownerName?: string;
+  ownerPhone?: string;
+}
+
 export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterSpecies, setFilterSpecies] = useState<'all' | 'cat' | 'dog'>('all');
+  const [filterSpecies, setFilterSpecies] = useState<'all' | 'cat' | 'dog' | 'other'>('all');
+  const [patients, setPatients] = useState<PatientWithOwner[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const patients = [
-    {
-      id: '1',
-      name: 'Kitty',
-      species: 'cat',
-      breed: 'European Shorthair',
-      age: 7,
-      weight: 6,
-      ownerName: 'John Doe',
-      ownerPhone: '+32 49 90 89 808',
-      lastVisit: '2025-11-15',
-      nextVisit: '2026-06-08',
-      status: 'healthy',
-      imageEmoji: '🐱',
-    },
-    {
-      id: '2',
-      name: 'Max',
-      species: 'dog',
-      breed: 'Golden Retriever',
-      age: 3,
-      weight: 28,
-      ownerName: 'Charles DuBois',
-      ownerPhone: '+32 2 123 4567',
-      lastVisit: '2025-11-10',
-      nextVisit: '2025-12-15',
-      status: 'healthy',
-      imageEmoji: '🐕',
-    },
-    {
-      id: '3',
-      name: 'Luna',
-      species: 'cat',
-      breed: 'Siamois',
-      age: 2,
-      weight: 4,
-      ownerName: 'Marie Martin',
-      ownerPhone: '+32 2 345 6789',
-      lastVisit: '2025-11-18',
-      nextVisit: '2025-11-21',
-      status: 'followup',
-      imageEmoji: '🐈',
-    },
-    {
-      id: '4',
-      name: 'Rocky',
-      species: 'dog',
-      breed: 'Labrador',
-      age: 5,
-      weight: 32,
-      ownerName: 'Sophie Laurent',
-      ownerPhone: '+32 2 456 7890',
-      lastVisit: '2025-11-20',
-      nextVisit: '2025-12-20',
-      status: 'healthy',
-      imageEmoji: '🐕‍🦺',
-    },
-  ];
+  useEffect(() => {
+    loadPatients();
+  }, [user?.id]);
 
+  const loadPatients = async () => {
+    if (!user?.id) {
+      console.log('❌ No user ID found');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      console.log(`🔍 Loading patients for vet: ${user.id}`);
+      
+      // Récupérer tous les animaux du vétérinaire
+      const pets = await getPetsByVetId(user.id);
+      console.log(`📦 Found ${pets.length} pets for this vet`);
+      
+      // Enrichir avec les infos du propriétaire
+      const petsWithOwners = await Promise.all(
+        pets.map(async (pet) => {
+          try {
+            const owner = await getUserById(pet.ownerId);
+            console.log(`👤 Loaded owner for pet ${pet.name}: ${owner?.firstName} ${owner?.lastName}`);
+            return {
+              ...pet,
+              ownerName: owner ? `${owner.firstName} ${owner.lastName}` : 'Propriétaire inconnu',
+              ownerPhone: owner?.phone || '',
+            };
+          } catch (error) {
+            console.error(`❌ Error loading owner for pet ${pet.name}:`, error);
+            return {
+              ...pet,
+              ownerName: 'Propriétaire inconnu',
+              ownerPhone: '',
+            };
+          }
+        })
+      );
+      
+      console.log(`✅ Loaded ${petsWithOwners.length} patients with owner info`);
+      setPatients(petsWithOwners);
+    } catch (error) {
+      console.error('❌ Error loading patients:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Utiliser uniquement les vrais patients
   const filteredPatients = patients
     .filter(patient => 
       filterSpecies === 'all' || 
-      patient.species === filterSpecies
+      patient.type === filterSpecies || 
+      (patient as any).species === filterSpecies
     )
     .filter(patient =>
       searchQuery.trim() === '' ||
       patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
+      (patient.ownerName?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.teal} />
+        <Text style={styles.loadingText}>Chargement des patients...</Text>
+      </View>
+    );
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -164,7 +175,7 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
           onPress={() => setFilterSpecies('cat')}
         >
           <Text style={[styles.filterText, filterSpecies === 'cat' && styles.filterTextActive]}>
-            🐱 Chats ({patients.filter(p => p.species === 'cat').length})
+            🐱 Chats ({patients.filter(p => p.type === 'cat' || (p as any).species === 'cat').length})
           </Text>
         </TouchableOpacity>
 
@@ -173,7 +184,7 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
           onPress={() => setFilterSpecies('dog')}
         >
           <Text style={[styles.filterText, filterSpecies === 'dog' && styles.filterTextActive]}>
-            🐕 Chiens ({patients.filter(p => p.species === 'dog').length})
+            🐕 Chiens ({patients.filter(p => p.type === 'dog' || (p as any).species === 'dog').length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -184,43 +195,55 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
           filteredPatients.map((patient) => (
             <TouchableOpacity key={patient.id} style={styles.patientCard}>
               <View style={styles.patientAvatar}>
-                <Text style={styles.avatarEmoji}>{patient.imageEmoji}</Text>
+                <Text style={styles.avatarEmoji}>{patient.emoji || patient.imageEmoji || '🐾'}</Text>
               </View>
 
               <View style={styles.patientInfo}>
                 <View style={styles.patientHeader}>
                   <Text style={styles.patientName}>{patient.name}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(patient.status) + '20' }]}>
-                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(patient.status) }]} />
-                    <Text style={[styles.statusText, { color: getStatusColor(patient.status) }]}>
-                      {getStatusText(patient.status)}
-                    </Text>
-                  </View>
+                  {(patient as any).status && (
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor((patient as any).status) + '20' }]}>
+                      <View style={[styles.statusDot, { backgroundColor: getStatusColor((patient as any).status) }]} />
+                      <Text style={[styles.statusText, { color: getStatusColor((patient as any).status) }]}>
+                        {getStatusText((patient as any).status)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 <Text style={styles.breedText}>{patient.breed} • {patient.age} ans • {patient.weight}kg</Text>
 
                 <View style={styles.ownerInfo}>
                   <Ionicons name="person" size={14} color={colors.gray} />
-                  <Text style={styles.ownerText}>{patient.ownerName}</Text>
-                  <Ionicons name="call" size={14} color={colors.gray} style={{ marginLeft: spacing.sm }} />
-                  <Text style={styles.ownerText}>{patient.ownerPhone}</Text>
+                  <Text style={styles.ownerText}>{patient.ownerName || 'Propriétaire inconnu'}</Text>
+                  {patient.ownerPhone && (
+                    <>
+                      <Ionicons name="call" size={14} color={colors.gray} style={{ marginLeft: spacing.sm }} />
+                      <Text style={styles.ownerText}>{patient.ownerPhone}</Text>
+                    </>
+                  )}
                 </View>
 
-                <View style={styles.visitsInfo}>
-                  <View style={styles.visitItem}>
-                    <Ionicons name="checkmark-circle" size={14} color="#4ECDC4" />
-                    <Text style={styles.visitText}>
-                      Dernière visite: {new Date(patient.lastVisit).toLocaleDateString('fr-FR')}
-                    </Text>
+                {((patient as any).lastVisit || (patient as any).nextVisit) && (
+                  <View style={styles.visitsInfo}>
+                    {(patient as any).lastVisit && (
+                      <View style={styles.visitItem}>
+                        <Ionicons name="checkmark-circle" size={14} color="#4ECDC4" />
+                        <Text style={styles.visitText}>
+                          Dernière visite: {new Date((patient as any).lastVisit).toLocaleDateString('fr-FR')}
+                        </Text>
+                      </View>
+                    )}
+                    {(patient as any).nextVisit && (
+                      <View style={styles.visitItem}>
+                        <Ionicons name="calendar" size={14} color={colors.teal} />
+                        <Text style={styles.visitText}>
+                          Prochain RDV: {new Date((patient as any).nextVisit).toLocaleDateString('fr-FR')}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                  <View style={styles.visitItem}>
-                    <Ionicons name="calendar" size={14} color={colors.teal} />
-                    <Text style={styles.visitText}>
-                      Prochain RDV: {new Date(patient.nextVisit).toLocaleDateString('fr-FR')}
-                    </Text>
-                  </View>
-                </View>
+                )}
 
                 <View style={styles.actionsRow}>
                   <TouchableOpacity style={styles.actionButton}>
@@ -244,7 +267,9 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
             <Ionicons name="paw-outline" size={64} color={colors.gray} />
             <Text style={styles.emptyTitle}>Aucun patient</Text>
             <Text style={styles.emptyText}>
-              {searchQuery.trim() ? 'Aucun résultat pour cette recherche' : 'Aucun patient enregistré'}
+              {searchQuery.trim() 
+                ? 'Aucun résultat pour cette recherche' 
+                : 'Les propriétaires qui ajoutent un animal et vous sélectionnent comme vétérinaire apparaîtront ici.'}
             </Text>
           </View>
         )}
@@ -259,6 +284,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
   },
   header: {
     flexDirection: 'row',

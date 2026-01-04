@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { demoAuth } from '../../services/demoAuth';
+import { getHealthRecordsByOwnerId } from '../../services/firestoreService';
 
 interface HealthRecordScreenProps {
   navigation: any;
@@ -14,13 +14,25 @@ type CategoryType = 'all' | 'vaccine' | 'treatment' | 'surgery' | 'operation' | 
 
 export const HealthRecordScreen: React.FC<HealthRecordScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const { currentPet } = useAuth();
+  const { currentPet, user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const healthRecords = currentPet 
-    ? demoAuth.getHealthRecordsByPet(currentPet.id)
-    : [];
+  const [healthRecords, setHealthRecords] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadHealthRecords = async () => {
+      if (user?.id) {
+        try {
+          const records = await getHealthRecordsByOwnerId(user.id);
+          setHealthRecords(records);
+        } catch (error) {
+          console.error('Error loading health records:', error);
+          setHealthRecords([]);
+        }
+      }
+    };
+    loadHealthRecords();
+  }, [user?.id]);
 
   // Trier par date (plus récent d'abord)
   const sortedRecords = [...healthRecords].sort((a, b) => 

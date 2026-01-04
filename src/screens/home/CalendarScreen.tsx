@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { demoAuth } from '../../services/demoAuth';
+import { getRemindersByOwnerId } from '../../services/firestoreService';
 
 interface CalendarScreenProps {
   navigation: any;
@@ -21,7 +21,7 @@ interface DateInfo {
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const { currentPet } = useAuth();
+  const { currentPet, user } = useAuth();
   
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(today);
@@ -30,10 +30,22 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const [showAddModal, setShowAddModal] = useState(false);
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderType, setNewReminderType] = useState<'vaccine' | 'vermifuge' | 'checkup' | 'medication'>('vaccine');
+  const [allReminders, setAllReminders] = useState<any[]>([]);
 
-  const allReminders = currentPet 
-    ? demoAuth.getRemindersByPet(currentPet.id)
-    : [];
+  useEffect(() => {
+    const loadReminders = async () => {
+      if (user?.id) {
+        try {
+          const reminders = await getRemindersByOwnerId(user.id);
+          setAllReminders(reminders);
+        } catch (error) {
+          console.error('Error loading reminders:', error);
+          setAllReminders([]);
+        }
+      }
+    };
+    loadReminders();
+  }, [user?.id]);
 
   // Get month and year
   const currentMonth = currentDate.getMonth();

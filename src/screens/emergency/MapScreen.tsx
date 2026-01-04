@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import { demoAuth } from '../../services/demoAuth';
+import { getVets } from '../../services/firestoreService';
 
 interface MapScreenProps {
   navigation: any;
@@ -11,7 +11,20 @@ interface MapScreenProps {
 
 export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const vets = demoAuth.getAllVets();
+  const [vets, setVets] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadVets = async () => {
+      try {
+        const vetsList = await getVets();
+        setVets(vetsList);
+      } catch (error) {
+        console.error('Error loading vets:', error);
+        setVets([]);
+      }
+    };
+    loadVets();
+  }, []);
 
   return (
     <View style={styles.container}>

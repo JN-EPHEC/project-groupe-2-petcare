@@ -1,5 +1,12 @@
 export { Button } from './Button';
 export { Input } from './Input';
 export { CustomTabBar } from './CustomTabBar';
+export { CustomPicker } from './CustomPicker';
 export { LanguageSwitcher } from './LanguageSwitcher';
+export { PremiumBadge } from './PremiumBadge';
+export { PremiumGate } from './PremiumGate';
+export { WellnessChart } from './WellnessChart';
+export { WellnessAlert } from './WellnessAlert';
 export { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
+export { AddressAutocomplete } from './AddressAutocomplete';
+export { CookieConsentModal } from './CookieConsentModal';

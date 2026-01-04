@@ -1,10 +1,22 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CustomTabBar } from '../components/CustomTabBar';
 
 // Auth Screens
-import { SplashScreen, LoginScreen, SignupScreen, VetSignupScreen, EmailConfirmationScreen, ForgotPasswordScreen, EmailVerificationScreen } from '../screens/auth';
+import { 
+  SplashScreen, 
+  LoginScreen, 
+  SignupChoiceScreen, 
+  SignupScreen, 
+  VetSignupScreen, 
+  EmailConfirmationScreen, 
+  ForgotPasswordScreen, 
+  EmailVerificationScreen,
+  OnboardingWizardScreen,
+  VetOnboardingScreen
+} from '../screens/auth';
 
 // Home Screens
 import { HomeScreen, RemindersScreen, OfflineModeScreen, CalendarScreen } from '../screens/home';
@@ -20,19 +32,39 @@ import {
   UserProfileDetailScreen
 } from '../screens/profile';
 
+// Settings Screens
+import { 
+  CookieSettingsScreen, 
+  PrivacyPolicyScreen, 
+  CookiePolicyScreen 
+} from '../screens/settings';
+
 // Health Screens
-import { HealthRecordScreen, DocumentsScreen, VaccinationsScreen } from '../screens/health';
+import { HealthRecordScreen, DocumentsScreen, VaccinationsScreen, AddDocumentScreen } from '../screens/health';
 
 // Emergency Screens
-import { EmergencyScreen, MapScreen } from '../screens/emergency';
+import { EmergencyScreen, EmergencyModeScreen, MapScreen, VetDetailsScreen } from '../screens/emergency';
 
 // Premium Screens
-import { PremiumScreen } from '../screens/premium';
+import { 
+  PremiumScreen,
+  PremiumSuccessScreen,
+  PaymentProcessingScreen,
+  BlogScreen, 
+  BlogArticleScreen,
+  WellnessTrackingScreen,
+  AddWellnessEntryScreen,
+  SharePetScreen,
+  SharedPetProfileScreen,
+  ManageSubscriptionScreen,
+  WeightTrackingScreen
+} from '../screens/premium';
 
 // Vet Screens
 import { 
   VetDashboardScreen,
   VetProfileScreen,
+  EditVetProfileScreen,
   VetAppointmentsScreen,
   VetPatientsScreen,
   VetScheduleScreen,
@@ -47,6 +79,7 @@ import {
   AdminAnalyticsScreen,
   AdminProfileScreen,
 } from '../screens/admin';
+import { AdminBlogScreen } from '../screens/admin/AdminBlogScreen';
 
 // Import useAuth to check user role
 import { useAuth } from '../context/AuthContext';
@@ -62,6 +95,9 @@ const HomeStack = () => {
       <Stack.Screen name="Reminders" component={RemindersScreen} />
       <Stack.Screen name="OfflineMode" component={OfflineModeScreen} />
       <Stack.Screen name="Calendar" component={CalendarScreen} />
+      <Stack.Screen name="SharePet" component={SharePetScreen} />
+      <Stack.Screen name="Blog" component={BlogScreen} />
+      <Stack.Screen name="BlogArticle" component={BlogArticleScreen} />
     </Stack.Navigator>
   );
 };
@@ -75,12 +111,25 @@ const ProfileStack = () => {
       <Stack.Screen name="PetProfile" component={PetProfileScreen} />
       <Stack.Screen name="HealthRecord" component={HealthRecordScreen} />
       <Stack.Screen name="Documents" component={DocumentsScreen} />
+      <Stack.Screen name="AddDocument" component={AddDocumentScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="Preferences" component={PreferencesScreen} />
       <Stack.Screen name="Vaccinations" component={VaccinationsScreen} />
       <Stack.Screen name="AddPet" component={AddPetScreen} />
       <Stack.Screen name="Premium" component={PremiumScreen} />
+      <Stack.Screen name="PaymentProcessing" component={PaymentProcessingScreen} />
+      <Stack.Screen name="CookieSettings" component={CookieSettingsScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="CookiePolicy" component={CookiePolicyScreen} />
+      <Stack.Screen name="PremiumSuccess" component={PremiumSuccessScreen} />
+      <Stack.Screen name="Blog" component={BlogScreen} />
+      <Stack.Screen name="BlogArticle" component={BlogArticleScreen} />
+      <Stack.Screen name="WellnessTracking" component={WellnessTrackingScreen} />
+      <Stack.Screen name="AddWellnessEntry" component={AddWellnessEntryScreen} />
+      <Stack.Screen name="SharePet" component={SharePetScreen} />
+      <Stack.Screen name="ManageSubscription" component={ManageSubscriptionScreen} />
+      <Stack.Screen name="WeightTracking" component={WeightTrackingScreen} />
     </Stack.Navigator>
   );
 };
@@ -90,7 +139,9 @@ const SearchStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Emergency" component={EmergencyScreen} />
+      <Stack.Screen name="EmergencyMode" component={EmergencyModeScreen} />
       <Stack.Screen name="Map" component={MapScreen} />
+      <Stack.Screen name="VetDetails" component={VetDetailsScreen} />
     </Stack.Navigator>
   );
 };
@@ -115,6 +166,7 @@ const VetDashboardStack = () => {
       <Stack.Screen name="VetPatients" component={VetPatientsScreen} />
       <Stack.Screen name="VetSchedule" component={VetScheduleScreen} />
       <Stack.Screen name="VetProfile" component={VetProfileScreen} />
+      <Stack.Screen name="EditVetProfile" component={EditVetProfileScreen} options={{ title: 'Modifier le profil' }} />
     </Stack.Navigator>
   );
 };
@@ -142,7 +194,11 @@ const VetProfileStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="VetProfileMain" component={VetProfileScreen} />
+      <Stack.Screen name="EditVetProfile" component={EditVetProfileScreen} options={{ title: 'Modifier le profil' }} />
       <Stack.Screen name="VetSchedule" component={VetScheduleScreen} />
+      <Stack.Screen name="CookieSettings" component={CookieSettingsScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="CookiePolicy" component={CookiePolicyScreen} />
     </Stack.Navigator>
   );
 };
@@ -176,6 +232,7 @@ const AdminDashboardStack = () => {
       <Stack.Screen name="AdminPets" component={AdminPetsScreen} />
       <Stack.Screen name="AdminAnalytics" component={AdminAnalyticsScreen} />
       <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+      <Stack.Screen name="AdminBlog" component={AdminBlogScreen} />
     </Stack.Navigator>
   );
 };
@@ -263,14 +320,22 @@ const MainTabs = () => {
 // Root Navigator
 const RootNavigator = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      screenOptions={{ headerShown: false }}
+    >
       <Stack.Screen name="Splash" component={SplashScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="SignupChoice" component={SignupChoiceScreen} />
       <Stack.Screen name="Signup" component={SignupScreen} />
       <Stack.Screen name="VetSignup" component={VetSignupScreen} />
+      <Stack.Screen name="OnboardingWizard" component={OnboardingWizardScreen} />
+      <Stack.Screen name="VetOnboarding" component={VetOnboardingScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
       <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
+      <Stack.Screen name="SharedPetProfile" component={SharedPetProfileScreen} />
+      <Stack.Screen name="PaymentProcessing" component={PaymentProcessingScreen} />
+      <Stack.Screen name="PremiumSuccess" component={PremiumSuccessScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
     </Stack.Navigator>
   );

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
@@ -12,23 +12,28 @@ interface AdminProfileScreenProps {
 export const AdminProfileScreen: React.FC<AdminProfileScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      t('common.logout'),
-      t('common.logoutConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.confirm'),
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            navigation.navigate('Splash');
-          }
-        },
-      ]
-    );
+    console.log('🚪 Bouton déconnexion cliqué');
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    console.log('🚪 Déconnexion confirmée');
+    try {
+      await signOut();
+      console.log('✅ SignOut effectué');
+      
+      // Réinitialiser complètement la navigation pour revenir à Splash
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Splash' }],
+      });
+      console.log('✅ Navigation réinitialisée');
+    } catch (error) {
+      console.error('❌ Erreur déconnexion:', error);
+    }
   };
 
   const adminStats = {
@@ -214,6 +219,44 @@ export const AdminProfileScreen: React.FC<AdminProfileScreenProps> = ({ navigati
           <Text style={styles.logoutButtonText}>{t('common.logout')}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal de confirmation de déconnexion */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIcon}>
+              <Ionicons name="log-out-outline" size={48} color={colors.error} />
+            </View>
+            
+            <Text style={styles.modalTitle}>🚪 Déconnexion</Text>
+            <Text style={styles.modalMessage}>
+              Voulez-vous vraiment vous déconnecter ?{'\n\n'}
+              Vous devrez vous reconnecter pour accéder au dashboard admin.
+            </Text>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.modalCancelText}>❌ Annuler</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalConfirmButton]}
+                onPress={confirmLogout}
+              >
+                <Text style={styles.modalConfirmText}>✅ Déconnexion</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -438,6 +481,70 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     fontSize: typography.fontSize.md,
     color: colors.error,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalIcon: {
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    width: '100%',
+  },
+  modalButton: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  modalCancelButton: {
+    backgroundColor: colors.lightGray,
+  },
+  modalCancelText: {
+    color: colors.gray,
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  modalConfirmButton: {
+    backgroundColor: colors.error,
+  },
+  modalConfirmText: {
+    color: colors.white,
+    fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semiBold,
   },
 });

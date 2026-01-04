@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import { LanguageSwitcher } from '../../components';
+import { LanguageSwitcher, PremiumBadge } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { getPetsByOwnerId, getRemindersByOwnerId } from '../../services/firestoreService';
 
@@ -19,6 +19,7 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
   const [pets, setPets] = useState<any[]>([]);
   const [remindersCount, setRemindersCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const loadUserData = useCallback(async () => {
     if (!user?.id) return;
@@ -56,93 +57,70 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
   );
 
   const handleLogout = () => {
-    Alert.alert(
-      t('common.logout'),
-      t('common.logoutConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { 
-          text: t('common.confirm'), 
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            navigation.navigate('Splash');
-          }
-        },
-      ]
-    );
+    console.log('🚪 Bouton déconnexion cliqué');
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    console.log('🚪 Déconnexion confirmée');
+    try {
+      await signOut();
+      console.log('✅ SignOut effectué');
+      
+      // Réinitialiser complètement la navigation pour revenir à Splash
+      // Utiliser CommonActions pour un reset global depuis un nested navigator
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Splash' }],
+        })
+      );
+      console.log('✅ Navigation réinitialisée');
+    } catch (error) {
+      console.error('❌ Erreur déconnexion:', error);
+    }
   };
 
   const profileSections = [
     {
-      title: 'Mon Compte',
-      icon: 'person',
+      title: 'Paramètres du compte',
+      icon: 'settings',
       items: [
         { 
           id: 'profile',
           icon: 'person-circle', 
-          title: t('profile.myProfile'), 
-          subtitle: 'Informations personnelles',
+          title: 'Mes informations', 
+          subtitle: 'Modifier mon profil',
           color: colors.teal,
           bgColor: '#E0F2F1',
           onPress: () => navigation.navigate('UserProfileDetail')
         },
-        { 
+        ...(user?.isPremium ? [] : [{ 
           id: 'premium',
           icon: 'star', 
-          title: t('profile.premium'), 
+          title: 'Passer à Premium', 
           subtitle: 'Débloquez toutes les fonctionnalités',
           color: '#FFB300',
           bgColor: '#FFF8E1',
           onPress: () => navigation.navigate('Premium')
-        },
-      ]
-    },
-    {
-      title: 'Mes Animaux',
-      icon: 'paw',
-      items: [
-        { 
-          id: 'myPets',
-          icon: 'paw', 
-          title: t('profile.myAnimal'), 
-          subtitle: 'Voir tous mes animaux',
-          color: '#E91E63',
-          bgColor: '#FCE4EC',
-          onPress: () => navigation.navigate('PetProfile')
-        },
-        { 
-          id: 'addPet',
-          icon: 'add-circle', 
-          title: t('profile.addAnimal'), 
-          subtitle: 'Enregistrer un nouvel animal',
-          color: colors.teal,
-          bgColor: '#E0F2F1',
-          onPress: () => navigation.navigate('AddPet')
-        },
-      ]
-    },
-    {
-      title: 'Paramètres',
-      icon: 'settings',
-      items: [
+        }]),
         { 
           id: 'notifications',
           icon: 'notifications', 
-          title: t('profile.notificationsTitle'), 
+          title: 'Notifications', 
           subtitle: 'Gérer les notifications',
           color: '#FF9800',
           bgColor: '#FFF3E0',
           onPress: () => navigation.navigate('Notifications')
         },
         { 
-          id: 'settings',
-          icon: 'settings', 
-          title: 'Paramètres', 
-          subtitle: 'Modifier mon profil',
-          color: '#9C27B0',
-          bgColor: '#F3E5F5',
-          onPress: () => navigation.navigate('EditProfile')
+          id: 'cookies',
+          icon: 'shield-checkmark', 
+          title: 'Gestion des cookies', 
+          subtitle: 'Contrôlez vos données et préférences',
+          color: colors.teal,
+          bgColor: '#E0F2F1',
+          onPress: () => navigation.navigate('CookieSettings')
         },
       ]
     }
@@ -172,7 +150,12 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
             </Text>
           </View>
           
-          <Text style={styles.name}>{user?.firstName} {user?.lastName}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>{user?.firstName} {user?.lastName}</Text>
+            {user?.isPremium && (
+              <PremiumBadge size="small" />
+            )}
+          </View>
           
           <View style={styles.locationRow}>
             <Ionicons name="location" size={16} color={colors.lightBlue} />
@@ -181,7 +164,7 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
 
           <TouchableOpacity 
             style={styles.editButton}
-            onPress={() => navigation.navigate('EditProfile')}
+            onPress={() => navigation.navigate('UserProfileDetail')}
           >
             <Ionicons name="create-outline" size={18} color={colors.white} />
             <Text style={styles.editButtonText}>Modifier le profil</Text>
@@ -189,83 +172,8 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
         </View>
       </View>
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <View style={[styles.statIconCircle, { backgroundColor: '#FCE4EC' }]}>
-            <Ionicons name="paw" size={24} color="#E91E63" />
-          </View>
-          <Text style={styles.statNumber}>{isLoading ? '-' : petsCount}</Text>
-          <Text style={styles.statLabel}>Animaux</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <View style={[styles.statIconCircle, { backgroundColor: '#E0F2F1' }]}>
-            <MaterialCommunityIcons name="medical-bag" size={24} color={colors.teal} />
-          </View>
-          <Text style={styles.statNumber}>{isLoading ? '-' : 0}</Text>
-          <Text style={styles.statLabel}>Visites</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <View style={[styles.statIconCircle, { backgroundColor: '#FFF3E0' }]}>
-            <Ionicons name="calendar" size={24} color="#FF9800" />
-          </View>
-          <Text style={styles.statNumber}>{isLoading ? '-' : remindersCount}</Text>
-          <Text style={styles.statLabel}>Rappels</Text>
-        </View>
-      </View>
-
-      {/* My Pets Horizontal Scroll */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Mes Compagnons</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('PetProfile')}>
-          <Text style={styles.seeAllText}>Voir tout</Text>
-        </TouchableOpacity>
-      </View>
-
-      {!isLoading && pets.length > 0 ? (
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.petsScrollContainer}
-        >
-          {pets.map((pet) => (
-            <TouchableOpacity 
-              key={pet.id}
-              style={styles.petCard}
-              onPress={() => navigation.navigate('PetProfile')}
-            >
-              <Text style={styles.petEmoji}>{pet.emoji || '🐾'}</Text>
-              <Text style={styles.petName}>{pet.name}</Text>
-              <Text style={styles.petAge}>{pet.age} ans</Text>
-              <View style={styles.healthBadge}>
-                <Ionicons name="checkmark-circle" size={14} color={colors.teal} />
-                <Text style={styles.healthBadgeText}>Sain</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-
-          <TouchableOpacity 
-            style={styles.addPetCardSmall}
-            onPress={() => navigation.navigate('AddPet')}
-          >
-            <Ionicons name="add" size={32} color={colors.teal} />
-            <Text style={styles.addPetTextSmall}>Ajouter</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      ) : !isLoading ? (
-        <View style={styles.noPetsMessage}>
-          <Text style={styles.noPetsText}>Aucun animal enregistré</Text>
-          <TouchableOpacity 
-            style={styles.addPetButton}
-            onPress={() => navigation.navigate('AddPet')}
-          >
-            <Ionicons name="add-circle" size={20} color={colors.teal} />
-            <Text style={styles.addPetButtonText}>Ajouter votre premier animal</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      {/* Spacer */}
+      <View style={{ height: spacing.lg }} />
 
       {/* Menu Sections */}
       {profileSections.map((section, sectionIndex) => (
@@ -294,6 +202,12 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
                 <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text>
               </View>
 
+              {(item as any).badge && (
+                <View style={styles.activeBadge}>
+                  <Text style={styles.activeBadgeText}>{(item as any).badge}</Text>
+                </View>
+              )}
+
               <Ionicons name="chevron-forward" size={20} color={colors.gray} />
             </TouchableOpacity>
           ))}
@@ -311,6 +225,47 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
       </TouchableOpacity>
 
       <View style={styles.bottomSpacing} />
+
+      {/* Modal de confirmation de déconnexion */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLogoutModal(false)}
+        >
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalIcon}>
+              <Ionicons name="log-out-outline" size={48} color="#FF6B6B" />
+            </View>
+            
+            <Text style={styles.modalTitle}>🚪 Déconnexion</Text>
+            <Text style={styles.modalMessage}>
+              Voulez-vous vraiment vous déconnecter ?
+            </Text>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalConfirmButton]}
+                onPress={confirmLogout}
+              >
+                <Text style={styles.modalConfirmText}>Déconnexion</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 };
@@ -377,11 +332,16 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
   name: {
     fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
-    marginBottom: spacing.xs,
   },
   locationRow: {
     flexDirection: 'row',
@@ -487,6 +447,14 @@ const styles = StyleSheet.create({
     fontSize: 40,
     marginBottom: spacing.xs,
   },
+  petImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: spacing.xs,
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
   petName: {
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
@@ -529,6 +497,29 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.semiBold,
     color: colors.teal,
+    marginTop: spacing.xs,
+  },
+  addPremiumCardSmall: {
+    width: 110,
+    backgroundColor: '#FFF8E1',
+    borderRadius: borderRadius.xl,
+    padding: spacing.md,
+    marginRight: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFB300',
+    minHeight: 130,
+    shadowColor: '#FFB300',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addPremiumTextSmall: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFB300',
     marginTop: spacing.xs,
   },
   noPetsMessage: {
@@ -614,6 +605,18 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     color: colors.gray,
   },
+  activeBadge: {
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    marginRight: spacing.sm,
+  },
+  activeBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -639,5 +642,75 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: spacing.xxl,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    alignItems: 'center',
+  },
+  modalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FF6B6B20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  modalMessage: {
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: spacing.md,
+  },
+  modalButton: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelButton: {
+    backgroundColor: colors.lightGray,
+  },
+  modalCancelText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.gray,
+  },
+  modalConfirmButton: {
+    backgroundColor: '#FF6B6B',
+  },
+  modalConfirmText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.white,
   },
 });

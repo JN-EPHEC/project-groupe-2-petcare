@@ -284,3 +284,8 @@ The app now supports **two distinct signup flows**:
 
 Both flows use Firebase Authentication and Firestore, but the vet flow includes additional professional information and a mandatory approval step to ensure platform quality and security.
 
+
+
+
+
+

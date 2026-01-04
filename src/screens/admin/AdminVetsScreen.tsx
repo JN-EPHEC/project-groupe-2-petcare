@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, TextInput } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
+import { getPendingVets, getVets, approveVet, rejectVet } from '../../services/firestoreService';
 
 interface AdminVetsScreenProps {
   navigation: any;
@@ -10,11 +12,41 @@ interface AdminVetsScreenProps {
 
 export const AdminVetsScreen: React.FC<AdminVetsScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [pendingVets, setPendingVets] = useState<any[]>([]);
+  const [approvedVets, setApprovedVets] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data
-  const vetsData = {
+  const loadVets = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [pending, approved] = await Promise.all([
+        getPendingVets(),
+        getVets(),
+      ]);
+      setPendingVets(pending);
+      setApprovedVets(approved);
+    } catch (error) {
+      console.error('Error loading vets:', error);
+      Alert.alert('Erreur', 'Impossible de charger les vétérinaires');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVets();
+  }, [loadVets]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadVets();
+    }, [loadVets])
+  );
+
+  // Mock data (backup)
+  const mockVetsData = {
     pending: [
       {
         id: '1',
@@ -80,36 +112,65 @@ export const AdminVetsScreen: React.FC<AdminVetsScreenProps> = ({ navigation }) 
     ],
   };
 
-  const filteredVets = vetsData[activeTab].filter(vet =>
-    vet.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    vet.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    vet.specialty.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Utiliser les vraies données ou mock en backup
+  const currentVetsData = activeTab === 'pending' 
+    ? (pendingVets.length > 0 ? pendingVets : mockVetsData.pending)
+    : (approvedVets.length > 0 ? approvedVets : mockVetsData.approved);
 
-  const handleApprove = (vet: any) => {
+  const filteredVets = currentVetsData.filter(vet => {
+    const vetName = vet.name || `${vet.firstName} ${vet.lastName}`;
+    const vetSpecialty = vet.specialty || '';
+    const vetEmail = vet.email || '';
+    
+    return vetName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           vetEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           vetSpecialty.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const handleApprove = async (vet: any) => {
+    const vetName = vet.name || `${vet.firstName} ${vet.lastName}`;
     Alert.alert(
       'Approuver le vétérinaire',
-      `Voulez-vous approuver la demande de ${vet.name} ?`,
+      `Voulez-vous approuver la demande de ${vetName} ?`,
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
           text: 'Approuver',
-          onPress: () => Alert.alert('Succès', `${vet.name} a été approuvé avec succès !`)
+          onPress: async () => {
+            try {
+              await approveVet(vet.id);
+              Alert.alert('Succès', `${vetName} a été approuvé avec succès !`);
+              await loadVets(); // Recharger la liste
+            } catch (error) {
+              console.error('Error approving vet:', error);
+              Alert.alert('Erreur', 'Impossible d\'approuver ce vétérinaire');
+            }
+          }
         }
       ]
     );
   };
 
   const handleReject = (vet: any) => {
+    const vetName = vet.name || `${vet.firstName} ${vet.lastName}`;
     Alert.prompt(
       'Rejeter le vétérinaire',
-      `Raison du rejet pour ${vet.name} :`,
+      `Raison du rejet pour ${vetName} :`,
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
           text: 'Rejeter',
           style: 'destructive',
-          onPress: (reason) => Alert.alert('Rejeté', `${vet.name} a été rejeté. Raison: ${reason}`)
+          onPress: async (reason) => {
+            try {
+              await rejectVet(vet.id, reason);
+              Alert.alert('Rejeté', `${vetName} a été rejeté.`);
+              await loadVets(); // Recharger la liste
+            } catch (error) {
+              console.error('Error rejecting vet:', error);
+              Alert.alert('Erreur', 'Impossible de rejeter ce vétérinaire');
+            }
+          }
         }
       ],
       'plain-text',
@@ -318,6 +379,15 @@ export const AdminVetsScreen: React.FC<AdminVetsScreenProps> = ({ navigation }) 
     );
   };
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={colors.teal} />
+        <Text style={styles.loadingText}>Chargement des vétérinaires...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -353,7 +423,7 @@ export const AdminVetsScreen: React.FC<AdminVetsScreenProps> = ({ navigation }) 
           onPress={() => setActiveTab('pending')}
         >
           <Text style={[styles.tabText, activeTab === 'pending' && styles.activeTabText]}>
-            En attente ({vetsData.pending.length})
+            En attente ({pendingVets.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -361,15 +431,7 @@ export const AdminVetsScreen: React.FC<AdminVetsScreenProps> = ({ navigation }) 
           onPress={() => setActiveTab('approved')}
         >
           <Text style={[styles.tabText, activeTab === 'approved' && styles.activeTabText]}>
-            Approuvés ({vetsData.approved.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'rejected' && styles.activeTab]}
-          onPress={() => setActiveTab('rejected')}
-        >
-          <Text style={[styles.tabText, activeTab === 'rejected' && styles.activeTabText]}>
-            Rejetés ({vetsData.rejected.length})
+            Approuvés ({approvedVets.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -378,8 +440,7 @@ export const AdminVetsScreen: React.FC<AdminVetsScreenProps> = ({ navigation }) 
         {filteredVets.length > 0 ? (
           filteredVets.map(vet => {
             if (activeTab === 'pending') return renderPendingVetCard(vet);
-            if (activeTab === 'approved') return renderApprovedVetCard(vet);
-            return renderRejectedVetCard(vet);
+            return renderApprovedVetCard(vet);
           })
         ) : (
           <View style={styles.emptyState}>
@@ -587,6 +648,15 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: typography.fontSize.lg,
+    color: colors.gray,
+    marginTop: spacing.md,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: typography.fontSize.md,
     color: colors.gray,
     marginTop: spacing.md,
   },

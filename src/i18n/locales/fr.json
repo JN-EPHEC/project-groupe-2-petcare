@@ -15,10 +15,6 @@
       "loginButton": "Se connecter",
       "signupButton": "Créer un compte",
       "forgotPassword": "Mot de passe oublié ?",
-      "demoTitle": "Comptes de démonstration",
-      "adminDemo": "Admin",
-      "ownerDemo": "Propriétaire",
-      "vetDemo": "Vétérinaire",
       "errorTitle": "Erreur",
       "errorMessage": "Veuillez entrer votre email et mot de passe",
       "loginFailedTitle": "Échec de connexion",
@@ -162,8 +158,10 @@
       "myVaccinations": "Mes vaccinations",
       "myHealthRecord": "Mon carnet de santé",
       "myDocuments": "Mes documents",
-      "male": "Male",
-      "female": "Female",
+      "male": "Mâle",
+      "femelle": "Femelle",
+      "mâle": "Mâle",
+      "female": "Femelle",
       "years": "ans"
     },
     "editProfile": {

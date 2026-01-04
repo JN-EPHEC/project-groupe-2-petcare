@@ -29,4 +29,7 @@ export const colors = {
   error: '#F44336',
   warning: '#FF9800',
   info: '#2196F3',
+  
+  // Emergency color (rouge vif très visible)
+  red: '#FF3B30',
 };

@@ -1,408 +1,438 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import { useAuth } from '../../context/AuthContext';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
 interface AdminDashboardScreenProps {
   navigation: any;
 }
 
+interface DashboardStats {
+  totalUsers: number;
+  totalPets: number;
+  totalVets: number;
+  premiumUsers: number;
+  activeUsers: number;
+  newUsersThisMonth: number;
+}
+
 export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation }) => {
-  const { t } = useTranslation();
-  const { user } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({
+    totalUsers: 0,
+    totalPets: 0,
+    totalVets: 0,
+    premiumUsers: 0,
+    activeUsers: 0,
+    newUsersThisMonth: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return t('home.morningGreeting');
-    if (hour < 18) return t('home.afternoonGreeting');
-    return t('home.eveningGreeting');
-  };
+  useEffect(() => {
+    loadStats();
+  }, []);
 
-  // Mock data for demo
-  const stats = {
-    totalUsers: 1248,
-    totalPets: 2156,
-    totalVets: 89,
-    pendingVets: 12,
-    activeUsers: 856,
-    reportsToday: 3,
-    revenue: '€12,450',
-    growth: '+15%',
-  };
+  const loadStats = async () => {
+    try {
+      setIsLoading(true);
 
-  const recentActivity = [
-    { id: '1', type: 'user', action: 'Nouvel utilisateur inscrit', name: 'Marie Dubois', time: '5 min' },
-    { id: '2', type: 'vet', action: 'Demande vétérinaire en attente', name: 'Dr. Laurent', time: '12 min' },
-    { id: '3', type: 'report', action: 'Signalement reçu', name: 'Commentaire inapproprié', time: '1h' },
-    { id: '4', type: 'pet', action: 'Nouveau profil animal', name: 'Bella (Chien)', time: '2h' },
-    { id: '5', type: 'vet', action: 'Vétérinaire validé', name: 'Dr. Sophie Martin', time: '3h' },
-  ];
+      // Total des utilisateurs
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const totalUsers = usersSnapshot.size;
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'user': return { name: 'person-add', library: 'Ionicons', color: colors.teal };
-      case 'vet': return { name: 'medical', library: 'Ionicons', color: '#9B59B6' };
-      case 'report': return { name: 'warning', library: 'Ionicons', color: '#FF6B6B' };
-      case 'pet': return { name: 'paw', library: 'Ionicons', color: '#4ECDC4' };
-      default: return { name: 'notifications', library: 'Ionicons', color: colors.gray };
+      // Vétérinaires
+      const vetsQuery = query(collection(db, 'users'), where('role', '==', 'vet'));
+      const vetsSnapshot = await getDocs(vetsQuery);
+      const totalVets = vetsSnapshot.size;
+
+      // Utilisateurs premium
+      const premiumQuery = query(collection(db, 'users'), where('isPremium', '==', true));
+      const premiumSnapshot = await getDocs(premiumQuery);
+      const premiumUsers = premiumSnapshot.size;
+
+      // Total des animaux
+      const petsSnapshot = await getDocs(collection(db, 'pets'));
+      const totalPets = petsSnapshot.size;
+
+      // Nouveaux utilisateurs ce mois
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const newUsersQuery = query(
+        collection(db, 'users'),
+        where('createdAt', '>=', firstDayOfMonth)
+      );
+      const newUsersSnapshot = await getDocs(newUsersQuery);
+      const newUsersThisMonth = newUsersSnapshot.size;
+
+      // Utilisateurs actifs (simulé - à implémenter avec analytics)
+      const activeUsers = Math.floor(totalUsers * 0.65);
+
+      setStats({
+        totalUsers,
+        totalPets,
+        totalVets,
+        premiumUsers,
+        activeUsers,
+        newUsersThisMonth,
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
     }
   };
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadStats();
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.teal} />
+        <Text style={styles.loadingText}>Chargement des statistiques...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{getGreeting()} {user?.firstName}</Text>
-          <Text style={styles.subtitle}>🔐 Administrateur</Text>
-        </View>
         <TouchableOpacity 
-          style={styles.profileButton}
-          onPress={() => navigation.navigate('AdminProfile')}
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
         >
-          <View style={styles.notificationWrapper}>
-            <Ionicons name="person-circle" size={40} color={colors.teal} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>3</Text>
-            </View>
-          </View>
+          <Ionicons name="arrow-back" size={28} color={colors.white} />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Tableau de bord Admin</Text>
+        <View style={styles.adminBadge}>
+          <Ionicons name="shield-checkmark" size={20} color={colors.white} />
+        </View>
       </View>
 
-      <View style={styles.content}>
-        {/* Stats Grid */}
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />
+        }
+      >
+        {/* Statistiques principales */}
         <View style={styles.statsGrid}>
-          <TouchableOpacity 
-            style={[styles.statCard, { backgroundColor: colors.teal }]}
-            onPress={() => navigation.navigate('AdminUsers')}
-          >
-            <Ionicons name="people" size={32} color={colors.white} />
-            <Text style={styles.statNumber}>{stats.totalUsers}</Text>
-            <Text style={styles.statLabel}>Utilisateurs</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.statCard, { backgroundColor: '#4ECDC4' }]}
-            onPress={() => navigation.navigate('AdminPets')}
-          >
-            <Ionicons name="paw" size={32} color={colors.white} />
-            <Text style={styles.statNumber}>{stats.totalPets}</Text>
-            <Text style={styles.statLabel}>Animaux</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.statCard, { backgroundColor: '#9B59B6' }]}
-            onPress={() => navigation.navigate('AdminVets')}
-          >
-            <MaterialCommunityIcons name="stethoscope" size={32} color={colors.white} />
-            <Text style={styles.statNumber}>{stats.totalVets}</Text>
-            <Text style={styles.statLabel}>Vétérinaires</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.statCard, { backgroundColor: '#FF6B6B' }]}
-            onPress={() => navigation.navigate('AdminVets')}
-          >
-            <Ionicons name="hourglass" size={32} color={colors.white} />
-            <Text style={styles.statNumber}>{stats.pendingVets}</Text>
-            <Text style={styles.statLabel}>En attente</Text>
-          </TouchableOpacity>
+          <StatCard
+            icon="people"
+            iconColor="#4ECDC4"
+            value={stats.totalUsers.toString()}
+            label="Utilisateurs"
+            onPress={() => navigation.navigate('UsersList')}
+          />
+          <StatCard
+            icon="paw"
+            iconColor="#FFB300"
+            value={stats.totalPets.toString()}
+            label="Animaux"
+          />
+          <StatCard
+            icon="medical"
+            iconColor="#1BA9B5"
+            value={stats.totalVets.toString()}
+            label="Vétérinaires"
+            onPress={() => navigation.navigate('VetsList')}
+          />
+          <StatCard
+            icon="star"
+            iconColor="#FF6B6B"
+            value={stats.premiumUsers.toString()}
+            label="Premium"
+          />
         </View>
 
-        {/* Performance Cards */}
-        <View style={styles.performanceContainer}>
-          <View style={styles.performanceCard}>
-            <View style={styles.performanceHeader}>
-              <Ionicons name="pulse" size={24} color={colors.teal} />
-              <Text style={styles.performanceTitle}>Utilisateurs actifs</Text>
-            </View>
-            <Text style={styles.performanceNumber}>{stats.activeUsers}</Text>
-            <Text style={styles.performanceSubtext}>En ligne maintenant</Text>
-          </View>
-
-          <View style={styles.performanceCard}>
-            <View style={styles.performanceHeader}>
-              <Ionicons name="trending-up" size={24} color={colors.green} />
-              <Text style={styles.performanceTitle}>Croissance</Text>
-            </View>
-            <Text style={styles.performanceNumber}>{stats.growth}</Text>
-            <Text style={styles.performanceSubtext}>Ce mois-ci</Text>
-          </View>
+        {/* Indicateurs de performance */}
+        <View style={styles.performanceCard}>
+          <Text style={styles.sectionTitle}>Performance</Text>
+          
+          <PerformanceItem
+            icon="trending-up"
+            label="Nouveaux utilisateurs ce mois"
+            value={stats.newUsersThisMonth}
+            color={colors.success}
+          />
+          
+          <PerformanceItem
+            icon="pulse"
+            label="Utilisateurs actifs"
+            value={stats.activeUsers}
+            percentage={Math.round((stats.activeUsers / stats.totalUsers) * 100)}
+            color={colors.teal}
+          />
+          
+          <PerformanceItem
+            icon="star-half"
+            label="Taux de conversion Premium"
+            value={stats.premiumUsers}
+            percentage={Math.round((stats.premiumUsers / stats.totalUsers) * 100)}
+            color="#FFB300"
+          />
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.sectionHeader}>
+        {/* Actions rapides */}
+        <View style={styles.quickActionsCard}>
           <Text style={styles.sectionTitle}>Actions rapides</Text>
+          
+          <QuickActionButton
+            icon="people-outline"
+            title="Gérer les utilisateurs"
+            subtitle="Consulter, suspendre, supprimer"
+            color={colors.teal}
+            onPress={() => navigation.navigate('UsersList')}
+          />
+          
+          <QuickActionButton
+            icon="medical-outline"
+            title="Gérer les vétérinaires"
+            subtitle="Valider, suspendre, statistiques"
+            color="#1BA9B5"
+            onPress={() => navigation.navigate('VetsList')}
+          />
+          
+          <QuickActionButton
+            icon="analytics-outline"
+            title="Statistiques détaillées"
+            subtitle="Graphiques, exports, rapports"
+            color="#4ECDC4"
+            onPress={() => navigation.navigate('DetailedStats')}
+          />
+          
+          <QuickActionButton
+            icon="settings-outline"
+            title="Paramètres globaux"
+            subtitle="Configuration de l'application"
+            color="#FF6B6B"
+            onPress={() => navigation.navigate('GlobalSettings')}
+          />
         </View>
 
-        <View style={styles.actionsGrid}>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('AdminUsers')}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: colors.teal + '20' }]}>
-              <Ionicons name="people" size={32} color={colors.teal} />
-            </View>
-            <Text style={styles.actionText}>Gérer utilisateurs</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('AdminVets')}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#9B59B620' }]}>
-              <MaterialCommunityIcons name="stethoscope" size={32} color="#9B59B6" />
-            </View>
-            <Text style={styles.actionText}>Valider vétérinaires</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('AdminAnalytics')}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#4ECDC420' }]}>
-              <Ionicons name="stats-chart" size={32} color="#4ECDC4" />
-            </View>
-            <Text style={styles.actionText}>Statistiques</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('AdminProfile')}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: colors.navy + '20' }]}>
-              <Ionicons name="settings" size={32} color={colors.navy} />
-            </View>
-            <Text style={styles.actionText}>Paramètres</Text>
-          </TouchableOpacity>
+        {/* Distribution des animaux par espèce */}
+        <View style={styles.distributionCard}>
+          <Text style={styles.sectionTitle}>Distribution des animaux</Text>
+          
+          <DistributionItem label="Chiens" value={45} total={stats.totalPets} icon="🐕" />
+          <DistributionItem label="Chats" value={38} total={stats.totalPets} icon="🐈" />
+          <DistributionItem label="Lapins" value={8} total={stats.totalPets} icon="🐰" />
+          <DistributionItem label="Rongeurs" value={5} total={stats.totalPets} icon="🐹" />
+          <DistributionItem label="Oiseaux" value={4} total={stats.totalPets} icon="🐦" />
         </View>
+      </ScrollView>
+    </View>
+  );
+};
 
-        {/* Recent Activity */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Activité récente</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAllText}>Tout voir</Text>
-          </TouchableOpacity>
-        </View>
+const StatCard: React.FC<{
+  icon: string;
+  iconColor: string;
+  value: string;
+  label: string;
+  onPress?: () => void;
+}> = ({ icon, iconColor, value, label, onPress }) => (
+  <TouchableOpacity 
+    style={styles.statCard}
+    onPress={onPress}
+    disabled={!onPress}
+  >
+    <View style={[styles.statIcon, { backgroundColor: iconColor + '20' }]}>
+      <Ionicons name={icon as any} size={28} color={iconColor} />
+    </View>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </TouchableOpacity>
+);
 
-        <View style={styles.activityContainer}>
-          {recentActivity.map((activity) => {
-            const icon = getActivityIcon(activity.type);
-            return (
-              <View key={activity.id} style={styles.activityItem}>
-                <View style={[styles.activityIcon, { backgroundColor: icon.color + '20' }]}>
-                  <Ionicons name={icon.name as any} size={20} color={icon.color} />
-                </View>
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityAction}>{activity.action}</Text>
-                  <Text style={styles.activityName}>{activity.name}</Text>
-                </View>
-                <Text style={styles.activityTime}>{activity.time}</Text>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Alerts Section */}
-        {stats.reportsToday > 0 && (
-          <View style={styles.alertCard}>
-            <View style={styles.alertHeader}>
-              <Ionicons name="warning" size={24} color="#FF6B6B" />
-              <Text style={styles.alertTitle}>Signalements à traiter</Text>
-            </View>
-            <Text style={styles.alertText}>
-              {stats.reportsToday} nouveau{stats.reportsToday > 1 ? 'x' : ''} signalement{stats.reportsToday > 1 ? 's' : ''} nécessite{stats.reportsToday > 1 ? 'nt' : ''} votre attention
-            </Text>
-            <TouchableOpacity style={styles.alertButton}>
-              <Text style={styles.alertButtonText}>Voir les signalements</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.white} />
-            </TouchableOpacity>
-          </View>
+const PerformanceItem: React.FC<{
+  icon: string;
+  label: string;
+  value: number;
+  percentage?: number;
+  color: string;
+}> = ({ icon, label, value, percentage, color }) => (
+  <View style={styles.performanceItem}>
+    <View style={[styles.performanceIcon, { backgroundColor: color + '20' }]}>
+      <Ionicons name={icon as any} size={20} color={color} />
+    </View>
+    <View style={styles.performanceContent}>
+      <Text style={styles.performanceLabel}>{label}</Text>
+      <View style={styles.performanceValues}>
+        <Text style={styles.performanceValue}>{value}</Text>
+        {percentage !== undefined && (
+          <Text style={[styles.performancePercentage, { color }]}>
+            ({percentage}%)
+          </Text>
         )}
       </View>
-    </ScrollView>
+    </View>
+  </View>
+);
+
+const QuickActionButton: React.FC<{
+  icon: string;
+  title: string;
+  subtitle: string;
+  color: string;
+  onPress: () => void;
+}> = ({ icon, title, subtitle, color, onPress }) => (
+  <TouchableOpacity style={styles.actionButton} onPress={onPress}>
+    <View style={[styles.actionIcon, { backgroundColor: color + '20' }]}>
+      <Ionicons name={icon as any} size={24} color={color} />
+    </View>
+    <View style={styles.actionContent}>
+      <Text style={styles.actionTitle}>{title}</Text>
+      <Text style={styles.actionSubtitle}>{subtitle}</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={20} color={colors.gray} />
+  </TouchableOpacity>
+);
+
+const DistributionItem: React.FC<{
+  label: string;
+  value: number;
+  total: number;
+  icon: string;
+}> = ({ label, value, total, icon }) => {
+  const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+  
+  return (
+    <View style={styles.distributionItem}>
+      <View style={styles.distributionHeader}>
+        <Text style={styles.distributionIcon}>{icon}</Text>
+        <Text style={styles.distributionLabel}>{label}</Text>
+        <Text style={styles.distributionValue}>{value}</Text>
+      </View>
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: `${percentage}%` }]} />
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: '#F8FAFB',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.lg,
-  },
-  greeting: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.navy,
-  },
-  subtitle: {
-    fontSize: typography.fontSize.md,
-    color: colors.gray,
-    marginTop: spacing.xs,
-  },
-  profileButton: {
-    padding: spacing.xs,
-  },
-  notificationWrapper: {
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#FF6B6B',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.white,
+    backgroundColor: '#F8FAFB',
   },
-  notificationBadgeText: {
-    color: colors.white,
-    fontSize: typography.fontSize.xs,
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
+  },
+  header: {
+    backgroundColor: colors.navy,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  backButton: {
+    marginRight: spacing.md,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  adminBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
+    flex: 1,
+    padding: spacing.lg,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: spacing.lg,
     gap: spacing.md,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   statCard: {
     flex: 1,
     minWidth: '45%',
-    borderRadius: borderRadius.lg,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
     padding: spacing.lg,
     alignItems: 'center',
-    gap: spacing.sm,
+    shadowColor: colors.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  statNumber: {
-    fontSize: typography.fontSize.xxxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-    marginTop: spacing.sm,
-  },
-  statLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.white,
-    marginTop: spacing.xs,
-    fontWeight: typography.fontWeight.semiBold,
-  },
-  performanceContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.xl,
-    gap: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  performanceCard: {
-    flex: 1,
-    backgroundColor: colors.lightBlue,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-  },
-  performanceHeader: {
-    flexDirection: 'row',
+  statIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  performanceTitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.gray,
-    marginLeft: spacing.sm,
-    fontWeight: typography.fontWeight.semiBold,
-  },
-  performanceNumber: {
+  statValue: {
     fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
-    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
-  performanceSubtext: {
-    fontSize: typography.fontSize.xs,
+  statLabel: {
+    fontSize: typography.fontSize.sm,
     color: colors.gray,
-    marginTop: spacing.xs,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.xl,
+  performanceCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: colors.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
+    marginBottom: spacing.md,
   },
-  seeAllText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.teal,
-    fontWeight: typography.fontWeight.semiBold,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.xl,
-    gap: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  actionCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    alignItems: 'center',
-    gap: spacing.sm,
-    shadowColor: colors.navy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  actionIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionText: {
-    fontSize: typography.fontSize.md,
-    color: colors.navy,
-    fontWeight: typography.fontWeight.semiBold,
-    textAlign: 'center',
-  },
-  activityContainer: {
-    backgroundColor: colors.lightBlue,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginHorizontal: spacing.xl,
-    marginBottom: spacing.xl,
-  },
-  activityItem: {
+  performanceItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.lightGray,
+    paddingVertical: spacing.sm,
   },
-  activityIcon: {
+  performanceIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -410,61 +440,109 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: spacing.md,
   },
-  activityContent: {
+  performanceContent: {
     flex: 1,
   },
-  activityAction: {
+  performanceLabel: {
     fontSize: typography.fontSize.sm,
     color: colors.gray,
+    marginBottom: spacing.xs,
   },
-  activityName: {
-    fontSize: typography.fontSize.md,
+  performanceValues: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.xs,
+  },
+  performanceValue: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
     color: colors.navy,
-    fontWeight: typography.fontWeight.semiBold,
-    marginTop: spacing.xs,
   },
-  activityTime: {
+  performancePercentage: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  quickActionsCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: colors.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray,
+  },
+  actionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.navy,
+    marginBottom: spacing.xs,
+  },
+  actionSubtitle: {
     fontSize: typography.fontSize.xs,
     color: colors.gray,
   },
-  alertCard: {
-    backgroundColor: '#FF6B6B20',
-    borderRadius: borderRadius.lg,
+  distributionCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
     padding: spacing.lg,
-    marginHorizontal: spacing.xl,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B6B',
+    marginBottom: spacing.xxl,
+    shadowColor: colors.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  alertTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.bold,
-    color: '#FF6B6B',
-    marginLeft: spacing.sm,
-  },
-  alertText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.black,
+  distributionItem: {
     marginBottom: spacing.md,
   },
-  alertButton: {
-    backgroundColor: '#FF6B6B',
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+  distributionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  alertButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semiBold,
+  distributionIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
+  },
+  distributionLabel: {
+    flex: 1,
+    fontSize: typography.fontSize.md,
+    color: colors.navy,
+  },
+  distributionValue: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.teal,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: colors.lightGray,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.teal,
+    borderRadius: 4,
   },
 });
-

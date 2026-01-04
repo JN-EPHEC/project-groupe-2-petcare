@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { demoAuth } from '../../services/demoAuth';
+import { getDocumentsByOwnerId } from '../../services/firestoreService';
 
 interface DocumentsScreenProps {
   navigation: any;
@@ -12,12 +12,24 @@ interface DocumentsScreenProps {
 
 export const DocumentsScreen: React.FC<DocumentsScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const { currentPet } = useAuth();
+  const { currentPet, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const allDocuments = currentPet 
-    ? demoAuth.getDocumentsByPet(currentPet.id)
-    : [];
+  const [allDocuments, setAllDocuments] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadDocuments = async () => {
+      if (user?.id) {
+        try {
+          const docs = await getDocumentsByOwnerId(user.id);
+          setAllDocuments(docs);
+        } catch (error) {
+          console.error('Error loading documents:', error);
+          setAllDocuments([]);
+        }
+      }
+    };
+    loadDocuments();
+  }, [user?.id]);
 
   // Filter documents by search query
   const documents = searchQuery.trim()
@@ -90,15 +102,28 @@ export const DocumentsScreen: React.FC<DocumentsScreenProps> = ({ navigation }) 
               <Text style={styles.emptyTitle}>
                 {searchQuery.trim() ? 'Aucun document trouvé' : t('health.documents.noDocuments')}
               </Text>
-              {searchQuery.trim() && (
+              {searchQuery.trim() ? (
                 <Text style={styles.emptyText}>
                   Essayez avec un autre nom de document
+                </Text>
+              ) : (
+                <Text style={styles.emptyText}>
+                  Cliquez sur le bouton + pour ajouter un document
                 </Text>
               )}
             </View>
           )}
         </View>
       </View>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('AddDocument', { petId: currentPet?.id })}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={32} color={colors.white} />
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -224,6 +249,22 @@ const styles = StyleSheet.create({
     color: colors.gray,
     textAlign: 'center',
     marginTop: spacing.xl,
+  },
+  fab: {
+    position: 'absolute',
+    right: spacing.xl,
+    bottom: spacing.xl,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.teal,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
 

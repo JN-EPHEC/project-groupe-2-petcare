@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { getPetsByOwnerId, Pet, getRemindersByOwnerId } from '../../services/firestoreService';
+import { PremiumBadge } from '../../components';
 
 interface HomeScreenProps {
   navigation: any;
+  route?: any;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
@@ -65,6 +67,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       title: t('home.calendarCard'), 
       color: colors.teal, 
       bgColor: '#E0F2F1',
+      isPremium: false,
       onPress: () => navigation.navigate('Calendar')
     },
     { 
@@ -73,6 +76,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       title: t('home.remindersCard'), 
       color: '#FF9800', 
       bgColor: '#FFF3E0',
+      isPremium: false,
       onPress: () => navigation.navigate('Reminders')
     },
     { 
@@ -81,50 +85,118 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       title: t('home.medicalHistoryCard'), 
       color: '#E91E63', 
       bgColor: '#FCE4EC',
+      isPremium: false,
       onPress: () => navigation.getParent()?.navigate('ProfileTab', { screen: 'HealthRecord' })
     },
     { 
-      id: 'offline', 
-      icon: 'cloud-offline', 
-      title: t('home.offlineModeCard'), 
-      color: '#9C27B0', 
-      bgColor: '#F3E5F5',
-      onPress: () => navigation.navigate('OfflineMode')
+      id: 'documents', 
+      icon: 'document-text', 
+      title: 'Mes documents', 
+      color: '#00BCD4', 
+      bgColor: '#E0F7FA',
+      isPremium: false,
+      onPress: () => navigation.getParent()?.navigate('ProfileTab', { screen: 'Documents' })
+    },
+    // Actions Premium
+    { 
+      id: 'wellness', 
+      icon: 'fitness', 
+      title: 'Suivi Bien-être', 
+      color: '#4CAF50', 
+      bgColor: '#E8F5E9',
+      isPremium: true,
+      onPress: () => navigation.navigate('WellnessTracking')
     },
     { 
-      id: 'emergency', 
-      icon: 'call', 
-      title: t('home.emergencyCard'), 
-      color: colors.red, 
-      bgColor: '#FFEBEE',
-      onPress: () => navigation.getParent()?.navigate('SearchTab', { screen: 'Emergency' })
+      id: 'blog', 
+      icon: 'book', 
+      title: 'Blog éducatif', 
+      color: '#FF5722', 
+      bgColor: '#FBE9E7',
+      isPremium: true,
+      onPress: () => navigation.navigate('Blog')
+    },
+    { 
+      id: 'share', 
+      icon: 'share-social', 
+      title: 'Partager le carnet', 
+      color: '#9C27B0', 
+      bgColor: '#F3E5F5',
+      isPremium: true,
+      onPress: () => navigation.navigate('SharePet', { pet: pets[0] })
     },
   ];
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header with gradient background */}
-      <View style={styles.headerContainer}>
-        <View style={styles.headerContent}>
-          <View style={styles.greetingSection}>
-            <Text style={styles.greeting}>{t('home.greeting')}</Text>
-            <Text style={styles.userName}>{user?.firstName || 'John'} 👋</Text>
-            <Text style={styles.subGreeting}>{getGreeting()}</Text>
+    <View style={styles.container}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        style={Platform.OS === 'web' ? { flex: 1, overflow: 'auto' } : {}}
+        contentContainerStyle={Platform.OS === 'web' ? { minHeight: '100%' } : {}}
+      >
+        {/* Header with gradient background */}
+        <View style={styles.headerContainer}>
+          <View style={styles.headerContent}>
+            <View style={styles.greetingSection}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Text style={styles.greeting}>{t('home.greeting')}</Text>
+                {user?.isPremium && (
+                  <PremiumBadge size="small" showText={false} />
+                )}
+              </View>
+              <Text style={styles.userName}>{user?.firstName || 'John'} 👋</Text>
+              <Text style={styles.subGreeting}>{getGreeting()}</Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={() => {
+                // Naviguer vers le profil utilisateur selon le rôle
+                if (user?.role === 'owner') {
+                  navigation.getParent()?.navigate('ProfileTab', { screen: 'OwnerProfile' });
+                } else if (user?.role === 'vet') {
+                  navigation.getParent()?.navigate('VetProfileTab', { screen: 'VetProfileMain' });
+                } else {
+                  navigation.getParent()?.navigate('ProfileTab');
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>
+                  {(user?.firstName?.[0] || 'J').toUpperCase()}
+                </Text>
+                {user?.isPremium && (
+                  <View style={styles.premiumAvatarBadge}>
+                    <Ionicons name="star" size={14} color="#FFB300" />
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
           </View>
-          
+        </View>
+
+        {/* Banner Premium pour non-premium */}
+        {!user?.isPremium && (
           <TouchableOpacity 
-            style={styles.avatarContainer}
-            onPress={() => navigation.getParent()?.navigate('ProfileTab')}
-            activeOpacity={0.8}
+            style={styles.premiumBanner}
+            onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'Premium' })}
+            activeOpacity={0.9}
           >
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>
-                {(user?.firstName?.[0] || 'J').toUpperCase()}
-              </Text>
+            <View style={styles.premiumBannerContent}>
+              <View style={styles.premiumBannerIcon}>
+                <Ionicons name="star" size={28} color="#FFB300" />
+              </View>
+              <View style={styles.premiumBannerText}>
+                <Text style={styles.premiumBannerTitle}>Passez à Premium ✨</Text>
+                <Text style={styles.premiumBannerSubtitle}>
+                  Débloquez toutes les fonctionnalités • €9.99/mois
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color={colors.white} />
             </View>
           </TouchableOpacity>
-        </View>
-      </View>
+        )}
 
       {/* Quick Stats */}
       <View style={styles.statsContainer}>
@@ -153,35 +225,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Quick Actions Title */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Actions rapides</Text>
-        <Ionicons name="flash" size={20} color={colors.teal} />
-      </View>
-
-      {/* Quick Action Cards - Grid Layout */}
-      <View style={styles.cardsGrid}>
-        {quickActions.map((action) => (
-          <TouchableOpacity
-            key={action.id}
-            style={[styles.actionCard, { backgroundColor: action.bgColor }]}
-            onPress={action.onPress}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: action.color }]}>
-              <Ionicons name={action.icon as any} size={28} color={colors.white} />
-            </View>
-            <Text style={styles.actionTitle} numberOfLines={2}>
-              {action.title}
-            </Text>
-            <View style={styles.actionArrow}>
-              <Ionicons name="arrow-forward" size={18} color={action.color} />
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* My Pets Section */}
+      {/* My Pets Section - DÉPLACÉ EN PREMIER */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Mes animaux</Text>
         <TouchableOpacity 
@@ -208,9 +252,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'PetProfile' })}
               activeOpacity={0.8}
             >
-              <View style={styles.petEmojiContainer}>
-                <Text style={styles.petEmoji}>{pet.emoji || '🐾'}</Text>
-              </View>
+              {pet.avatarUrl ? (
+                <Image 
+                  source={{ uri: pet.avatarUrl }} 
+                  style={styles.petImage}
+                />
+              ) : (
+                <View style={styles.petEmojiContainer}>
+                  <Text style={styles.petEmoji}>{pet.emoji || '🐾'}</Text>
+                </View>
+              )}
               <Text style={styles.petName}>{pet.name}</Text>
               <Text style={styles.petBreed}>{pet.breed}</Text>
               <View style={styles.petBadge}>
@@ -246,8 +297,89 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
       )}
 
+      {/* Quick Actions Title - DÉPLACÉ APRÈS LES ANIMAUX */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Actions</Text>
+        <Ionicons name="flash" size={20} color={colors.teal} />
+      </View>
+
+      {/* Action Cards - Grid 2x2 */}
+      <View style={styles.quickActionsGrid}>
+        {quickActions.map((action) => {
+          const isLocked = action.isPremium && !user?.isPremium;
+          const handlePress = () => {
+            if (isLocked) {
+              // Rediriger vers la page premium
+              navigation.navigate('Premium');
+            } else {
+              action.onPress();
+            }
+          };
+
+          return (
+            <TouchableOpacity
+              key={action.id}
+              style={[
+                styles.quickActionCard,
+                isLocked && styles.quickActionCardLocked
+              ]}
+              onPress={handlePress}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.quickActionIcon, 
+                { backgroundColor: isLocked ? '#E0E0E0' : action.color }
+              ]}>
+                <Ionicons 
+                  name={action.icon as any} 
+                  size={20} 
+                  color={isLocked ? '#9E9E9E' : colors.white} 
+                />
+              </View>
+              <Text style={[
+                styles.quickActionText,
+                isLocked && styles.quickActionTextLocked
+              ]} numberOfLines={2}>
+                {action.title}
+              </Text>
+              {action.isPremium && (
+                <View style={styles.premiumBadgeSmall}>
+                  <Ionicons name="star" size={12} color="#FFB300" />
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <View style={styles.bottomSpacing} />
-    </ScrollView>
+      </ScrollView>
+
+      {/* Bouton d'urgence flottant (ROUGE - toujours visible) */}
+      <TouchableOpacity 
+        style={styles.floatingEmergencyButton}
+        onPress={() => navigation.getParent()?.navigate('SearchTab', { screen: 'EmergencyMode' })}
+        activeOpacity={0.85}
+      >
+        <View style={styles.emergencyIconContainer}>
+          <Ionicons name="medical" size={32} color="#FFFFFF" />
+        </View>
+        <Text style={styles.floatingEmergencyText}>URGENCE</Text>
+        <View style={styles.emergencyPulse} />
+      </TouchableOpacity>
+
+      {/* Bouton flottant Premium pour non-premium */}
+      {!user?.isPremium && (
+        <TouchableOpacity 
+          style={styles.floatingPremiumButton}
+          onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'Premium' })}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="star" size={24} color={colors.white} />
+          <Text style={styles.floatingButtonText}>Passer à Premium</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 };
 
@@ -255,6 +387,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFB',
+    position: 'relative', // Nécessaire pour les éléments absolus
+    ...(Platform.OS === 'web' ? {
+      height: '100vh',
+    } : {}),
   },
   headerContainer: {
     backgroundColor: colors.navy,
@@ -316,6 +452,19 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
+  },
+  premiumAvatarBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.navy,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -389,7 +538,66 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     position: 'relative',
-    minHeight: 140,
+  },
+  // Nouvelle grille pour quick actions compactes 2x2
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  quickActionCard: {
+    width: '48%',
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    minHeight: 85,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  quickActionCardLocked: {
+    opacity: 0.6,
+    backgroundColor: '#F5F5F5',
+  },
+  quickActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  quickActionText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.navy,
+    textAlign: 'center',
+  },
+  quickActionTextLocked: {
+    color: '#9E9E9E',
+  },
+  premiumBadgeSmall: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
   },
   actionIconContainer: {
     width: 56,
@@ -441,6 +649,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.sm,
+  },
+  petImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.lightBlue,
   },
   petEmoji: {
     fontSize: 36,
@@ -541,5 +756,144 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: spacing.xxl,
+  },
+  premiumFeaturesContainer: {
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  premiumFeatureCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#FFB300',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFB300',
+  },
+  premiumFeatureTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    marginBottom: spacing.xs,
+  },
+  premiumFeatureSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+  },
+  // Styles Premium Banner & Floating Button
+  premiumBanner: {
+    marginHorizontal: spacing.xl,
+    marginTop: -30,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.xl,
+    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    overflow: 'hidden',
+  },
+  premiumBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  premiumBannerIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  premiumBannerText: {
+    flex: 1,
+  },
+  premiumBannerTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  premiumBannerSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
+    opacity: 0.9,
+  },
+  floatingPremiumButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'web' ? 30 : 20, // Plus bas pour ne pas cacher le bouton d'urgence
+    right: spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFB300',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.xxl,
+    shadowColor: '#FFB300',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+    gap: spacing.sm,
+    zIndex: 999, // En dessous du bouton d'urgence
+  },
+  floatingButtonText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  // Bouton d'urgence flottant (rouge vif et très visible)
+  floatingEmergencyButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'web' ? 120 : 100, // Plus haut sur web pour éviter la barre
+    right: spacing.xl,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B30', // Rouge vif iOS
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 20, // Augmenté pour Android
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    zIndex: 9999, // Maximum pour être au-dessus de TOUT (y compris Premium)
+    ...(Platform.OS === 'web' ? {
+      // Sur web, on s'assure qu'il reste visible
+      boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.4)',
+    } : {}),
+  },
+  emergencyIconContainer: {
+    marginBottom: 4,
+  },
+  floatingEmergencyText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  emergencyPulse: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FF3B30',
+    opacity: 0.3,
+    // Animation pulse (nécessite Animated API pour animer)
   },
 });

@@ -141,7 +141,8 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         password,
       });
       // Rediriger vers l'écran de vérification d'email
-      navigation.navigate('EmailVerification', { email });
+      // Rediriger vers le wizard d'onboarding au lieu de EmailVerification
+      navigation.navigate('OnboardingWizard');
     } catch (error: any) {
       const errorMessage = getFirebaseErrorMessage(error);
       setSignupError(errorMessage);

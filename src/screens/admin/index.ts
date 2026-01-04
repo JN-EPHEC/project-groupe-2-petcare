@@ -4,4 +4,5 @@ export { AdminVetsScreen } from './AdminVetsScreen';
 export { AdminPetsScreen } from './AdminPetsScreen';
 export { AdminAnalyticsScreen } from './AdminAnalyticsScreen';
 export { AdminProfileScreen } from './AdminProfileScreen';
+export { AdminBlogScreen } from './AdminBlogScreen';
 
