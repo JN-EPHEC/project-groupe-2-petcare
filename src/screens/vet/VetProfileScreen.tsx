@@ -126,13 +126,13 @@ export const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ navigation }
       console.log('🎨 Opening image picker...');
       const result = source === 'camera'
         ? await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.8,
           })
         : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.8,
@@ -396,6 +396,16 @@ export const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ navigation }
           <Ionicons name="list" size={24} color={colors.teal} />
           <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
             Voir mes patients
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.secondaryButton]}
+          onPress={() => navigation.navigate('NotificationSettings')}
+        >
+          <Ionicons name="notifications" size={24} color={colors.teal} />
+          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+            Notifications
           </Text>
         </TouchableOpacity>
 

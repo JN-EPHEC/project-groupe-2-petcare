@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
@@ -23,6 +23,7 @@ export const AddWellnessEntryScreen: React.FC<AddWellnessEntryScreenProps> = ({ 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   
   const types = [
     { id: 'weight', label: 'Poids', icon: 'scale-outline', unit: 'kg', color: '#FF6B6B' },
@@ -54,28 +55,50 @@ export const AddWellnessEntryScreen: React.FC<AddWellnessEntryScreenProps> = ({ 
   };
   
   const handleSave = async () => {
+    console.log('🔘 Bouton Enregistrer cliqué');
+    
     if (!selectedPet) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un animal');
+      const message = 'Veuillez sélectionner un animal';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Erreur', message);
+      }
       return;
     }
     
     const numValue = parseFloat(value);
+    console.log('📊 Valeur entrée:', value, '→ Nombre:', numValue);
+    
     if (isNaN(numValue) || numValue <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer une valeur valide');
+      const message = 'Veuillez entrer une valeur valide (nombre positif)';
+      console.log('❌ Valeur invalide');
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Erreur', message);
+      }
       return;
     }
     
     // Valider la valeur selon le type
     const validation = validateWellnessValue(type, numValue);
     if (!validation.valid) {
-      Alert.alert('Attention', validation.message || 'Valeur invalide');
+      console.log('❌ Validation échouée:', validation.message);
+      const message = validation.message || 'Valeur invalide';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Attention', message);
+      }
       return;
     }
     
     try {
       setIsSaving(true);
+      console.log('💾 Début enregistrement...');
       
-      await addWellnessEntry({
+      const entryData = {
         petId: selectedPet.id,
         petName: selectedPet.name,
         ownerId: user?.id || '',
@@ -84,23 +107,31 @@ export const AddWellnessEntryScreen: React.FC<AddWellnessEntryScreenProps> = ({ 
         value: numValue,
         unit: getWellnessUnit(type),
         notes: notes.trim() || undefined,
-      });
+      };
       
-      Alert.alert(
-        'Succès',
-        'Mesure enregistrée avec succès',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack()
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('Error saving wellness entry:', error);
-      Alert.alert('Erreur', 'Impossible d\'enregistrer la mesure');
-    } finally {
+      console.log('📦 Données à enregistrer:', entryData);
+      
+      await addWellnessEntry(entryData);
+      
+      console.log('✅ Enregistrement réussi !');
+      setIsSuccess(true);
       setIsSaving(false);
+      
+      // Attendre 2 secondes puis naviguer
+      setTimeout(() => {
+        console.log('🔙 Retour à l\'écran précédent');
+        navigation.goBack();
+      }, 2000);
+      
+    } catch (error: any) {
+      console.error('❌ Erreur enregistrement wellness:', error);
+      setIsSaving(false);
+      const message = error?.message || 'Impossible d\'enregistrer la mesure';
+      if (Platform.OS === 'web') {
+        window.alert('Erreur: ' + message);
+      } else {
+        Alert.alert('Erreur', message);
+      }
     }
   };
   
@@ -240,14 +271,30 @@ export const AddWellnessEntryScreen: React.FC<AddWellnessEntryScreenProps> = ({ 
         
         {/* Save Button */}
         <TouchableOpacity 
-          style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+          style={[
+            styles.saveButton, 
+            isSaving && styles.saveButtonDisabled,
+            isSuccess && styles.saveButtonSuccess
+          ]}
           onPress={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || isSuccess}
         >
-          <Ionicons name="checkmark-circle" size={24} color={colors.white} />
-          <Text style={styles.saveButtonText}>
-            {isSaving ? 'Enregistrement...' : 'Enregistrer la mesure'}
-          </Text>
+          {isSuccess ? (
+            <>
+              <Ionicons name="checkmark-circle" size={24} color={colors.white} />
+              <Text style={styles.saveButtonText}>Mesure enregistrée !</Text>
+            </>
+          ) : isSaving ? (
+            <>
+              <ActivityIndicator size="small" color={colors.white} />
+              <Text style={styles.saveButtonText}>Enregistrement...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={24} color={colors.white} />
+              <Text style={styles.saveButtonText}>Enregistrer la mesure</Text>
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -431,7 +478,11 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   saveButtonDisabled: {
-    opacity: 0.6,
+    backgroundColor: colors.gray,
+    opacity: 0.8,
+  },
+  saveButtonSuccess: {
+    backgroundColor: '#4CAF50',
   },
   saveButtonText: {
     fontSize: typography.fontSize.lg,
@@ -439,6 +490,7 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 });
+
 
 
 

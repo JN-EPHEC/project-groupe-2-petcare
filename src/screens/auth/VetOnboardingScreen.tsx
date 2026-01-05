@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { Button, Input } from '../../components';
 import { CookieConsentModal } from '../../components/CookieConsentModal';
 import { updateUserProfile } from '../../services/firestoreService';
+import { uploadUserAvatar } from '../../services/imageUploadService';
 import { useAuth } from '../../context/AuthContext';
 import { saveConsent, type CookiePreferences } from '../../services/cookieConsentService';
 
@@ -21,19 +23,68 @@ export const VetOnboardingScreen: React.FC<VetOnboardingScreenProps> = ({ naviga
   const [workingHours, setWorkingHours] = useState('');
   const [emergencyAvailable, setEmergencyAvailable] = useState(false);
   
+  // Photo
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  
   // Cookie consent
   const [showCookieConsent, setShowCookieConsent] = useState(false);
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image. Veuillez réessayer.');
+    }
+  };
 
   const handleComplete = async () => {
     if (!user) return;
 
     setIsLoading(true);
     try {
+      let avatarUrl = user.avatarUrl || null;
+
+      // Upload de l'image si une image a été sélectionnée
+      if (imageUri) {
+        try {
+          setIsUploadingImage(true);
+          avatarUrl = await uploadUserAvatar(imageUri, user.id);
+          console.log('✅ Image uploadée avec succès:', avatarUrl);
+        } catch (uploadError) {
+          console.error('⚠️ Erreur upload image (continuons sans photo):', uploadError);
+          Alert.alert(
+            'Photo non uploadée',
+            'La photo n\'a pas pu être uploadée, mais votre profil sera complété sans photo. Vous pourrez en ajouter une plus tard.',
+            [{ text: 'OK' }]
+          );
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
       // Mettre à jour le profil avec les infos additionnelles
       await updateUserProfile(user.id, {
         clinicPhone: clinicPhone || user.phone,
         workingHours: workingHours || 'Lun-Ven: 9h-18h',
         emergencyAvailable,
+        avatarUrl,
         onboardingCompleted: true,
       });
 
@@ -103,6 +154,21 @@ export const VetOnboardingScreen: React.FC<VetOnboardingScreenProps> = ({ naviga
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          {/* Photo de profil */}
+          <View style={styles.photoSection}>
+            <TouchableOpacity style={styles.imagePlaceholder} onPress={pickImage}>
+              {imageUri ? (
+                <Image source={{ uri: imageUri }} style={styles.profileImage} />
+              ) : (
+                <>
+                  <Ionicons name="camera" size={40} color={colors.teal} />
+                  <Text style={styles.imageText}>Ajouter une photo</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.imageNote}>Optionnel - Votre photo de profil pour les propriétaires</Text>
+          </View>
+
           <View style={styles.infoCard}>
             <View style={styles.infoCardHeader}>
               <Ionicons name="checkmark-circle" size={24} color={colors.teal} />
@@ -250,6 +316,41 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.xl,
+  },
+  photoSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  imagePlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.lightBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.teal,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
+  },
+  imageText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.teal,
+    fontWeight: typography.fontWeight.semiBold,
+    marginTop: spacing.xs,
+  },
+  imageNote: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
   },
   infoCard: {
     backgroundColor: colors.lightBlue,

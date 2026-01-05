@@ -90,7 +90,7 @@ export const scanDocument = async (): Promise<{ uri: string; type: string; size:
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
       base64: false,
@@ -136,7 +136,7 @@ export const importImageFromGallery = async (): Promise<{ uri: string; type: str
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
       base64: false,
@@ -242,15 +242,29 @@ export const createDocument = async (documentData: Omit<Document, 'id' | 'create
       }
     });
     
+    console.log('📝 Creating document with data:', cleanData);
+    
     const docRef = await addDoc(collection(db, 'documents'), {
       ...cleanData,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
+    
+    console.log('✅ Document created with ID:', docRef.id);
     return docRef.id;
-  } catch (error) {
-    console.error('Error creating document:', error);
-    throw new Error('Impossible de créer le document');
+  } catch (error: any) {
+    console.error('❌ Error creating document:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    
+    // Fournir un message d'erreur plus spécifique
+    if (error.code === 'permission-denied') {
+      throw new Error('Permission refusée. Vérifiez vos droits d\'accès.');
+    } else if (error.code === 'unavailable') {
+      throw new Error('Service temporairement indisponible. Réessayez dans quelques instants.');
+    } else {
+      throw new Error(error.message || 'Impossible de créer le document');
+    }
   }
 };
 

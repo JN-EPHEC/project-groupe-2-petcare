@@ -111,7 +111,7 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
           subtitle: 'Gérer les notifications',
           color: '#FF9800',
           bgColor: '#FFF3E0',
-          onPress: () => navigation.navigate('Notifications')
+          onPress: () => navigation.navigate('NotificationSettings')
         },
         { 
           id: 'cookies',

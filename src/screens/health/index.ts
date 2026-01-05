@@ -2,4 +2,10 @@ export { HealthRecordScreen } from './HealthRecordScreen';
 export { DocumentsScreen } from './DocumentsScreen';
 export { VaccinationsScreen } from './VaccinationsScreen';
 export { AddDocumentScreen } from './AddDocumentScreen';
-
+export { PetHealthRecordScreen } from './PetHealthRecordScreen';
+export { AddVaccinationScreen } from './AddVaccinationScreen';
+export { EditVaccinationScreen } from './EditVaccinationScreen';
+export { AddTreatmentScreen } from './AddTreatmentScreen';
+export { EditTreatmentScreen } from './EditTreatmentScreen';
+export { AddMedicalHistoryScreen } from './AddMedicalHistoryScreen';
+export { EditMedicalHistoryScreen } from './EditMedicalHistoryScreen';

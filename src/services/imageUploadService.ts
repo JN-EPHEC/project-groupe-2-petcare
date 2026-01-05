@@ -78,4 +78,54 @@ export const uploadUserAvatar = async (
   return await uploadImage(uri, path);
 };
 
+/**
+ * Upload un document médical (PDF) pour le carnet de santé
+ * @param uri - URI locale du document
+ * @param userId - ID du propriétaire
+ * @param petId - ID de l'animal
+ * @returns URL de téléchargement
+ */
+export const uploadMedicalDocument = async (
+  uri: string,
+  userId: string,
+  petId: string
+): Promise<string> => {
+  const UPLOAD_TIMEOUT = 15000; // 15 secondes pour les documents PDF
+
+  const uploadPromise = (async () => {
+    // Convertir l'URI en blob
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    
+    const timestamp = Date.now();
+    const path = `medical-documents/${userId}/${petId}/${timestamp}.pdf`;
+    
+    // Créer une référence dans Firebase Storage
+    const storageRef = ref(storage, path);
+    
+    // Uploader le blob avec metadata
+    await uploadBytes(storageRef, blob, {
+      contentType: 'application/pdf',
+    });
+    
+    // Obtenir l'URL de téléchargement
+    const downloadURL = await getDownloadURL(storageRef);
+    
+    return downloadURL;
+  })();
+
+  const timeoutPromise = new Promise<string>((_, reject) => 
+    setTimeout(() => reject(new Error('Upload timeout (CORS ou réseau)')), UPLOAD_TIMEOUT)
+  );
+
+  try {
+    return await Promise.race([uploadPromise, timeoutPromise]);
+  } catch (error: any) {
+    console.error('Error uploading medical document:', error);
+    if (error?.message?.includes('CORS') || error?.message?.includes('timeout')) {
+      throw new Error('CORS_ERROR');
+    }
+    throw error;
+  }
+};
 

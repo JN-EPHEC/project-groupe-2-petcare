@@ -115,11 +115,15 @@ export const AddDocumentScreen: React.FC<AddDocumentScreenProps> = ({ navigation
         throw new Error('Animal non trouvé');
       }
 
+      console.log('📤 Starting document upload...', { fileName, petId: selectedPetId });
+
       // Upload le fichier vers Firebase Storage
       const fileUrl = await uploadDocument(fileUri, fileName, user.id, selectedPetId);
+      console.log('✅ File uploaded to Storage:', fileUrl);
 
       // Créer le document dans Firestore
-      await createDocument({
+      console.log('📝 Creating document in Firestore...');
+      const documentData = {
         title: title.trim(),
         description: description.trim() || undefined,
         category,
@@ -133,16 +137,33 @@ export const AddDocumentScreen: React.FC<AddDocumentScreenProps> = ({ navigation
         fileSize,
         date,
         uploadDate: new Date().toISOString(),
-      });
+      };
+      console.log('Document data:', documentData);
+      
+      await createDocument(documentData);
+      console.log('✅ Document created in Firestore');
 
-      Alert.alert('Succès', 'Document enregistré avec succès', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch (error) {
-      console.error('Error saving document:', error);
-      Alert.alert('Erreur', 'Impossible d\'enregistrer le document');
-    } finally {
       setIsUploading(false);
+      
+      if (Platform.OS === 'web') {
+        window.alert('Document enregistré avec succès');
+        navigation.goBack();
+      } else {
+        Alert.alert('Succès', 'Document enregistré avec succès', [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
+      }
+    } catch (error: any) {
+      console.error('❌ Error saving document:', error);
+      console.error('Error details:', error.message, error.code);
+      setIsUploading(false);
+      
+      const errorMessage = error.message || 'Impossible d\'enregistrer le document';
+      if (Platform.OS === 'web') {
+        window.alert(`Erreur: ${errorMessage}`);
+      } else {
+        Alert.alert('Erreur', errorMessage);
+      }
     }
   };
 
@@ -162,7 +183,11 @@ export const AddDocumentScreen: React.FC<AddDocumentScreenProps> = ({ navigation
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+      >
         {/* Section: Scanner/Importer */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📄 Document</Text>
@@ -406,6 +431,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.xl,
+    paddingBottom: spacing.xxl * 2, // Extra space pour voir le bouton en mobile
   },
   section: {
     marginBottom: spacing.xl,
@@ -548,6 +574,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
     marginTop: spacing.lg,
+    marginBottom: spacing.xl,
   },
   saveButtonDisabled: {
     backgroundColor: colors.gray,

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, Image, TextInput, ActivityIndicator, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { PremiumBadge } from '../../components';
@@ -9,14 +10,16 @@ import * as Location from 'expo-location';
 
 interface EmergencyScreenProps {
   navigation: any;
+  route?: any;
 }
 
 interface VetWithDistance extends any {
   calculatedDistance?: number;
 }
 
-export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) => {
+export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
+  const isEmergencyMode = route?.params?.isEmergencyMode ?? false; // Par défaut : mode recherche normale
   const [searchQuery, setSearchQuery] = useState('');
   const [allVets, setAllVets] = useState<VetWithDistance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,9 +27,13 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [noEmergencyVetsAvailable, setNoEmergencyVetsAvailable] = useState(false);
   
-  useEffect(() => {
-    loadVetsWithLocation();
-  }, []);
+  // Recharger les vétérinaires quand l'écran gagne le focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📍 EmergencyScreen - Mode:', isEmergencyMode ? 'URGENCE 🚨' : 'RECHERCHE NORMALE 🔍');
+      loadVetsWithLocation();
+    }, [isEmergencyMode])
+  );
   
   // Fonction pour calculer la distance entre deux coordonnées (formule de Haversine)
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -74,7 +81,10 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
   
   const loadVetsWithLocation = async () => {
     try {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('🏥 Chargement des vétérinaires...');
+      console.log(`📍 MODE: ${isEmergencyMode ? '🚨 URGENCE' : '🔍 RECHERCHE NORMALE'}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       setIsLoading(true);
       setIsSearching(true);
       
@@ -142,17 +152,15 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
         })
       );
       
-      // Trier intelligemment :
-      // 1. Vétérinaires de garde d'abord
-      // 2. Puis par distance (si disponible)
-      // 3. Puis par premium
-      // 4. Puis par rating
+      // Trier intelligemment selon le mode :
       const sorted = vetsWithDistance.sort((a, b) => {
-        // Priorité aux vétérinaires de garde
-        if (a.emergencyAvailable && !b.emergencyAvailable) return -1;
-        if (!a.emergencyAvailable && b.emergencyAvailable) return 1;
+        // EN MODE URGENCE : Priorité aux vétérinaires de garde
+        if (isEmergencyMode) {
+          if (a.emergencyAvailable && !b.emergencyAvailable) return -1;
+          if (!a.emergencyAvailable && b.emergencyAvailable) return 1;
+        }
         
-        // Si les deux sont de garde (ou non), trier par distance
+        // EN MODE NORMAL ou après tri de garde : trier par distance
         if (a.calculatedDistance !== undefined && b.calculatedDistance !== undefined) {
           return a.calculatedDistance - b.calculatedDistance;
         }
@@ -167,30 +175,36 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
         return (b.rating || 0) - (a.rating || 0);
       });
       
-      // Compter les vétérinaires de garde
-      const onDutyVets = sorted.filter(v => v.emergencyAvailable);
-      console.log('🚨 Vétérinaires de garde:', onDutyVets.length);
-      console.log('📊 Vétérinaires triés total:', sorted.length);
-      
-      // Si aucun vétérinaire de garde, afficher tous les vétérinaires de manière aléatoire
+      // EN MODE URGENCE : Compter les vétérinaires de garde et gérer le fallback
       let finalVets = sorted;
-      if (onDutyVets.length === 0) {
-        console.log('⚠️ Aucun vétérinaire de garde trouvé - affichage aléatoire de tous les vétérinaires');
-        console.log('📋 Nombre de vétérinaires à afficher:', sorted.length);
-        setNoEmergencyVetsAvailable(true);
+      if (isEmergencyMode) {
+        const onDutyVets = sorted.filter(v => v.emergencyAvailable);
+        console.log('🚨 MODE URGENCE - Vétérinaires de garde:', onDutyVets.length);
+        console.log('📊 Vétérinaires triés total:', sorted.length);
         
-        // Mélanger aléatoirement tous les vétérinaires
-        const shuffled = [...sorted].sort(() => Math.random() - 0.5);
-        console.log('🔀 Vétérinaires mélangés:', shuffled.length);
-        
-        // Marquer tous les vétérinaires comme "disponibles en urgence" pour l'affichage
-        finalVets = shuffled.map(vet => ({
-          ...vet,
-          emergencyAvailable: true // Force l'affichage comme "disponible"
-        }));
-        console.log('✅ Vétérinaires forcés comme disponibles:', finalVets.length);
+        // Si aucun vétérinaire de garde, afficher tous les vétérinaires de manière aléatoire
+        if (onDutyVets.length === 0) {
+          console.log('⚠️ Aucun vétérinaire de garde trouvé - affichage aléatoire de tous les vétérinaires');
+          console.log('📋 Nombre de vétérinaires à afficher:', sorted.length);
+          setNoEmergencyVetsAvailable(true);
+          
+          // Mélanger aléatoirement tous les vétérinaires
+          const shuffled = [...sorted].sort(() => Math.random() - 0.5);
+          console.log('🔀 Vétérinaires mélangés:', shuffled.length);
+          
+          // Marquer tous les vétérinaires comme "disponibles en urgence" pour l'affichage
+          finalVets = shuffled.map(vet => ({
+            ...vet,
+            emergencyAvailable: true // Force l'affichage comme "disponible"
+          }));
+          console.log('✅ Vétérinaires forcés comme disponibles:', finalVets.length);
+        } else {
+          console.log('✅ Vétérinaires de garde trouvés - affichage normal');
+          setNoEmergencyVetsAvailable(false);
+        }
       } else {
-        console.log('✅ Vétérinaires de garde trouvés - affichage normal');
+        // EN MODE RECHERCHE NORMALE : affichage standard, pas de badge de garde
+        console.log('🔍 MODE RECHERCHE NORMALE - affichage de tous les vétérinaires');
         setNoEmergencyVetsAvailable(false);
       }
       
@@ -243,7 +257,9 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
       </TouchableOpacity>
 
       <View style={styles.header}>
-        <Text style={styles.title}>{t('emergency.title')}</Text>
+        <Text style={styles.title}>
+          {isEmergencyMode ? t('emergency.title') : 'Rechercher un vétérinaire'}
+        </Text>
         <TouchableOpacity onPress={() => navigation.navigate('Map')}>
           <Text style={styles.seeAllText}>{t('emergency.seeAll')}</Text>
         </TouchableOpacity>
@@ -274,13 +290,19 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
       {isSearching && (
         <View style={styles.searchingContainer}>
           <ActivityIndicator size="large" color={colors.teal} />
-          <Text style={styles.searchingTitle}>🚨 Recherche d'urgence...</Text>
-          <Text style={styles.searchingText}>Recherche des vétérinaires de garde à proximité</Text>
+          <Text style={styles.searchingTitle}>
+            {isEmergencyMode ? '🚨 Recherche d\'urgence...' : '🔍 Recherche en cours...'}
+          </Text>
+          <Text style={styles.searchingText}>
+            {isEmergencyMode 
+              ? 'Recherche des vétérinaires de garde à proximité' 
+              : 'Recherche des vétérinaires disponibles'}
+          </Text>
         </View>
       )}
 
-      {/* Compteur de vétérinaires de garde */}
-      {!isLoading && !isSearching && (
+      {/* Compteur de vétérinaires de garde (MODE URGENCE UNIQUEMENT) */}
+      {!isLoading && !isSearching && isEmergencyMode && (
         <View style={[styles.onDutyBanner, noEmergencyVetsAvailable && styles.fallbackBanner]}>
           <Ionicons name="medical" size={20} color={noEmergencyVetsAvailable ? '#FF9800' : colors.red} />
           <Text style={styles.onDutyText}>
@@ -320,7 +342,7 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
               key={vet.id} 
               style={[
                 styles.vetCard,
-                vet.emergencyAvailable && styles.vetCardOnDuty
+                isEmergencyMode && vet.emergencyAvailable && styles.vetCardOnDuty
               ]}
               onPress={() => navigation.navigate('VetDetails', { vet })}
               activeOpacity={0.7}
@@ -344,7 +366,7 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
                   {vet.isPremiumPartner && (
                     <PremiumBadge size="small" showText={false} />
                   )}
-                  {vet.emergencyAvailable && (
+                  {isEmergencyMode && vet.emergencyAvailable && (
                     <View style={styles.onDutyBadge}>
                       <Ionicons name="medical" size={12} color={colors.white} />
                       <Text style={styles.onDutyBadgeText}>DE GARDE</Text>
@@ -372,18 +394,34 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation }) 
                 </View>
               </View>
 
-              <TouchableOpacity 
-                style={[
-                  styles.callButton,
-                  vet.emergencyAvailable && styles.callButtonOnDuty
-                ]}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleCall(vet.phone);
-                }}
-              >
-                <Ionicons name="call" size={26} color={colors.white} />
-              </TouchableOpacity>
+              <View style={styles.vetActions}>
+                <TouchableOpacity 
+                  style={[
+                    styles.actionButton,
+                    styles.appointmentButton
+                  ]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    navigation.navigate('RequestAppointment', { vetId: vet.id });
+                  }}
+                >
+                  <Ionicons name="calendar" size={22} color={colors.white} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.actionButton,
+                    styles.callButton,
+                    isEmergencyMode && vet.emergencyAvailable && styles.callButtonOnDuty
+                  ]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleCall(vet.phone);
+                  }}
+                >
+                  <Ionicons name="call" size={22} color={colors.white} />
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
           ))
         )}
@@ -538,13 +576,22 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.black,
   },
-  callButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.navy,
+  vetActions: {
+    flexDirection: 'column',
+    gap: spacing.xs,
+  },
+  actionButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  appointmentButton: {
+    backgroundColor: colors.teal,
+  },
+  callButton: {
+    backgroundColor: colors.navy,
   },
   mapContainer: {
     margin: spacing.xl,

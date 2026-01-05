@@ -32,6 +32,7 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
   const [petName, setPetName] = useState('');
   const [species, setSpecies] = useState('');
   const [breed, setBreed] = useState('');
+  const [customBreed, setCustomBreed] = useState('');
   const [gender, setGender] = useState('');
   const [identification, setIdentification] = useState('');
   
@@ -65,7 +66,15 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
   // Réinitialiser la race quand l'espèce change
   useEffect(() => {
     setBreed('');
+    setCustomBreed('');
   }, [species]);
+
+  // Réinitialiser customBreed quand on change de race
+  useEffect(() => {
+    if (breed !== 'Autre') {
+      setCustomBreed('');
+    }
+  }, [breed]);
 
   const loadVets = async () => {
     try {
@@ -110,7 +119,7 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -252,16 +261,37 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
 
       // Upload de l'image si une image a été sélectionnée
       if (imageUri) {
+        console.log('📸 Début upload de l\'image...');
+        console.log('📸 Image URI:', imageUri);
+        console.log('📸 User ID:', user.id);
         try {
           setIsUploadingImage(true);
           avatarUrl = await uploadPetImage(imageUri, user.id);
-          console.log('✅ Image uploaded:', avatarUrl);
-        } catch (uploadError) {
-          console.error('⚠️ Error uploading image:', uploadError);
-          // Continuer sans photo
+          console.log('✅ Image uploaded successfully!');
+          console.log('✅ Avatar URL:', avatarUrl);
+          
+          if (!avatarUrl) {
+            console.error('❌ PROBLÈME: avatarUrl est null malgré succès upload!');
+          }
+        } catch (uploadError: any) {
+          console.error('❌ Error uploading image:', uploadError);
+          console.error('❌ Error message:', uploadError?.message);
+          console.error('❌ Error stack:', uploadError?.stack);
+          // Afficher une alerte à l'utilisateur
+          if (Platform.OS === 'web') {
+            window.alert('La photo n\'a pas pu être uploadée. L\'animal sera créé sans photo.');
+          } else {
+            Alert.alert(
+              'Photo non uploadée',
+              'La photo n\'a pas pu être uploadée. L\'animal sera créé sans photo.',
+              [{ text: 'OK' }]
+            );
+          }
         } finally {
           setIsUploadingImage(false);
         }
+      } else {
+        console.log('📸 Pas d\'image sélectionnée');
       }
 
       const age = calculateAge(birthDate);
@@ -270,7 +300,7 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
       const petData: any = {
         name: petName.trim(),
         type: species,
-        breed: breed,
+        breed: breed === 'Autre' ? (customBreed || 'Non précisée') : breed,
         gender: gender,
         identification: identification.trim() || null,
         birthDate: birthDate.toISOString(),
@@ -289,10 +319,14 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
         petData.vetName = `${selectedVet.firstName} ${selectedVet.lastName}`;
       }
 
+      console.log('📦 Données animal à sauvegarder:', petData);
+      console.log('📦 avatarUrl dans petData:', petData.avatarUrl);
+      
       await addPet(petData);
       console.log('✅ Animal ajouté avec succès:', petData.name);
 
       // Rafraîchir la liste des animaux dans le contexte
+      console.log('🔄 Rafraîchissement de la liste des animaux...');
       await refreshPets();
       console.log('✅ Liste des animaux rafraîchie');
 
@@ -406,6 +440,18 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
               )}
             </View>
 
+            {/* Champ de saisie manuelle pour race "Autre" */}
+            {breed === 'Autre' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Précisez la race *</Text>
+                <Input
+                  value={customBreed}
+                  onChangeText={setCustomBreed}
+                  placeholder="Ex: Labradoodle, Croisé..."
+                />
+              </View>
+            )}
+
             {/* Sexe */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Sexe *</Text>
@@ -420,36 +466,79 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
 
             {/* Identification */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Numéro d'identification</Text>
+              <Text style={styles.label}>Numéro d'identification (puce/tatouage)</Text>
               <Input
                 value={identification}
                 onChangeText={setIdentification}
-                placeholder="Ex: 250269XXXXXXXXXX"
+                placeholder="Ex: 250269812345678 (15 chiffres) ou ABC123"
+                keyboardType="default"
+                autoCapitalize="characters"
               />
+              <Text style={styles.helperText}>
+                {identification.trim() ? (
+                  /^[0-9]{15}$/.test(identification.trim()) ? (
+                    '✓ Puce électronique valide'
+                  ) : /^[A-Z0-9]{3,}$/.test(identification.trim().toUpperCase()) ? (
+                    '✓ Tatouage valide'
+                  ) : (
+                    'ℹ️ Puce: 15 chiffres | Tatouage: lettres et chiffres'
+                  )
+                ) : (
+                  'Optionnel - Puce électronique ou tatouage'
+                )}
+              </Text>
             </View>
 
             {/* Date de naissance */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Date de naissance</Text>
-              <TouchableOpacity 
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <View style={styles.dateButtonContent}>
-                  <Ionicons name="calendar" size={20} color={colors.teal} style={styles.dateIcon} />
-                  <Text style={styles.dateText}>
-                    {birthDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </Text>
+              {Platform.OS === 'web' ? (
+                <View style={styles.dateButton}>
+                  <View style={styles.dateButtonContent}>
+                    <Ionicons name="calendar" size={20} color={colors.teal} style={styles.dateIcon} />
+                    <input
+                      type="date"
+                      value={birthDate.toISOString().split('T')[0]}
+                      onChange={(e) => {
+                        const newDate = new Date(e.target.value);
+                        if (!isNaN(newDate.getTime())) {
+                          setBirthDate(newDate);
+                        }
+                      }}
+                      max={new Date().toISOString().split('T')[0]}
+                      style={{
+                        flex: 1,
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        color: colors.navy,
+                        outline: 'none',
+                      }}
+                    />
+                  </View>
                 </View>
-                <Ionicons name="chevron-down" size={20} color={colors.teal} />
-              </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <View style={styles.dateButtonContent}>
+                    <Ionicons name="calendar" size={20} color={colors.teal} style={styles.dateIcon} />
+                    <Text style={styles.dateText}>
+                      {birthDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color={colors.teal} />
+                </TouchableOpacity>
+              )}
               <View style={styles.ageIndicator}>
                 <Ionicons name="time" size={14} color={colors.gray} />
                 <Text style={styles.helperText}>Âge calculé: {calculateAge(birthDate)} an(s)</Text>
               </View>
             </View>
 
-            {showDatePicker && (
+            {showDatePicker && Platform.OS !== 'web' && (
               <DateTimePicker
                 value={birthDate}
                 mode="date"

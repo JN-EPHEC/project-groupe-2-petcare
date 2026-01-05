@@ -44,7 +44,21 @@ service firebase.storage {
                     && request.resource.contentType.matches('image/.*');
     }
     
-    // PHOTOS D'ANIMAUX : pets/{userId}/{petId}/{filename}
+    // PHOTOS D'ANIMAUX : pets/{userId}/{filename} (chemin simplifié)
+    match /pets/{userId}/{filename} {
+      // Lecture : tout le monde peut voir les photos d'animaux
+      allow read: if true;
+      
+      // Écriture : uniquement le propriétaire
+      allow write: if isOwner(userId);
+      
+      // Limiter la taille à 5 MB
+      allow create: if isOwner(userId) 
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+    
+    // PHOTOS D'ANIMAUX : pets/{userId}/{petId}/{filename} (chemin avec petId)
     match /pets/{userId}/{petId}/{filename} {
       // Lecture : tout le monde peut voir les photos d'animaux
       allow read: if true;
@@ -84,6 +98,21 @@ service firebase.storage {
       allow create: if isAuthenticated() 
                     && request.resource.size < 5 * 1024 * 1024
                     && request.resource.contentType.matches('image/.*');
+    }
+    
+    // DOCUMENTS MÉDICAUX : medical-documents/{userId}/{petId}/{filename}
+    // Pour les antécédents médicaux du carnet de santé
+    match /medical-documents/{userId}/{petId}/{filename} {
+      // Lecture : l'utilisateur peut lire ses propres documents
+      allow read: if isOwner(userId);
+      
+      // Écriture : l'utilisateur peut créer/modifier/supprimer ses propres documents
+      allow write: if isOwner(userId);
+      
+      // Limiter la taille des PDFs à 5 MB
+      allow create: if isOwner(userId) 
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType == 'application/pdf';
     }
     
     // Par défaut, tout le reste est interdit

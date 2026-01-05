@@ -72,6 +72,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Whippet',
     'Lévrier afghan',
     'Saluki',
+    'Autre',
   ],
   cat: [
     'Maine Coon',
@@ -102,6 +103,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Européen (chat de gouttière)',
     'American Shorthair',
     'Egyptian Mau',
+    'Autre',
   ],
   rabbit: [
     'Lapin nain de couleur',
@@ -113,6 +115,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Lapins à poil long',
     'Lapins géants',
     'Races rustiques / traditionnelles',
+    'Autre',
   ],
   rodent: [
     'Hamster',
@@ -124,6 +127,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Octodon (dègue du Chili)',
     'Hamster nain de Campbell',
     'Gerboise',
+    'Autre',
   ],
   bird: [
     'Perruche ondulée',
@@ -152,6 +156,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Mainate religieux',
     'Toui céleste',
     'Padda de Java',
+    'Autre',
   ],
   horse: [
     'Selle Français',
@@ -179,6 +184,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Arabe',
     'Akhal-Téké',
     'Barbe',
+    'Autre',
   ],
   pony: [
     'Shetland',
@@ -201,6 +207,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Mérens',
     'Hucul',
     'Haflinger',
+    'Autre',
   ],
   donkey: [
     'Âne du Poitou',
@@ -215,10 +222,12 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Âne de Majorque',
     'Âne miniature américain',
     'Âne commun (âne domestique)',
+    'Autre',
   ],
   fish: [
     'Poisson d\'eau douce',
     'Poisson d\'eau de mer',
+    'Autre',
   ],
   reptile: [
     'Gecko léopard',
@@ -237,6 +246,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Tortue des steppes',
     'Tortue à tempes rouges',
     'Tortue serpentine',
+    'Autre',
   ],
   amphibian: [
     'Rainette verte',
@@ -245,6 +255,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Axolotl',
     'Triton à ventre de feu',
     'Salamandre tachetée',
+    'Autre',
   ],
   ferret: [
     'Furet albinos',
@@ -255,12 +266,14 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Furet panda',
     'Furet blaze',
     'Furet angora',
+    'Autre',
   ],
   goat: [
     'Race laitière',
     'Race mixte / rustique',
     'Race bouchère',
     'Race naine / compagnie',
+    'Autre',
   ],
   sheep: [
     'Texel',
@@ -279,6 +292,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Solognot',
     'Thônes et Marthod',
     'Corse',
+    'Autre',
   ],
   pig: [
     'Large White',
@@ -295,6 +309,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Cochon miniature',
     'Porc Ibérique',
     'Porc de Bayeux',
+    'Autre',
   ],
   cattle: [
     'Holstein',
@@ -316,6 +331,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Galloway',
     'Gasconne',
     'Bazadaise',
+    'Autre',
   ],
   poultry: [
     'Poule rousse',
@@ -342,6 +358,7 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Oie blanche',
     'Dinde bronzée',
     'Dinde blanche',
+    'Autre',
   ],
   llama_alpaca: [
     'Lama glama (lama domestique)',
@@ -350,10 +367,12 @@ export const PET_BREEDS: Record<string, string[]> = {
     'Lama de garde de troupeaux',
     'Alpaga Huacaya',
     'Alpaga Suri',
+    'Autre',
   ],
   ostrich_emu: [
     'Autruche',
     'Émeu',
+    'Autre',
   ],
 };
 
@@ -367,6 +386,7 @@ export const STERILIZATION_STATUS = [
   { value: 'no', label: 'Non' },
   { value: 'unknown', label: 'Inconnu' },
 ];
+
 
 
 

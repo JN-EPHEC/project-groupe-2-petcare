@@ -68,17 +68,140 @@ service cloud.firestore {
     
     // Règles pour la collection vaccinations
     match /vaccinations/{vaccinationId} {
-      // Lecture: propriétaire, vets, ou admins
-      allow read: if isOwner(resource.data.ownerId) || hasRole('vet') || hasRole('admin');
+      // Lecture: propriétaire (via ownerId OU si le pet lui appartient), vets, ou admins
+      allow read: if isAuthenticated() &&
+                     (resource.data.ownerId == request.auth.uid ||
+                      (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                      hasRole('vet') || 
+                      hasRole('admin'));
       
-      // Création/Modification: vets ou admin
-      allow create, update: if hasRole('vet') || hasRole('admin');
+      // Création: propriétaire (via ownerId), vets, ou admin
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.ownerId == request.auth.uid || 
+                        hasRole('vet') || 
+                        hasRole('admin'));
+      
+      // Modification: propriétaire (via ownerId OU si le pet lui appartient), vets, ou admin
+      allow update: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('vet') || 
+                        hasRole('admin'));
       
       // Suppression: propriétaire (via ownerId OU si le pet appartient à l'utilisateur), vets, ou admin
-      allow delete: if isOwner(resource.data.ownerId) || 
-                       (isAuthenticated() && resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
-                       hasRole('vet') || 
-                       hasRole('admin');
+      allow delete: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('vet') || 
+                        hasRole('admin'));
+    }
+    
+    // Règles pour la collection treatments (traitements)
+    match /treatments/{treatmentId} {
+      // Lecture: propriétaire (via ownerId OU si le pet lui appartient), vets, ou admins
+      allow read: if isAuthenticated() &&
+                     (resource.data.ownerId == request.auth.uid ||
+                      (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                      hasRole('vet') || 
+                      hasRole('admin'));
+      
+      // Création: propriétaire (via ownerId), vets, ou admin
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.ownerId == request.auth.uid || 
+                        hasRole('vet') || 
+                        hasRole('admin'));
+      
+      // Modification: propriétaire (via ownerId OU si le pet lui appartient), vets, ou admin
+      allow update: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('vet') || 
+                        hasRole('admin'));
+      
+      // Suppression: propriétaire (via ownerId OU si le pet appartient à l'utilisateur), vets, ou admin
+      allow delete: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('vet') || 
+                        hasRole('admin'));
+    }
+    
+    // Règles pour la collection medicalHistory (historique médical)
+    match /medicalHistory/{historyId} {
+      // Lecture: propriétaire (via ownerId OU si le pet lui appartient), vets, ou admins
+      allow read: if isAuthenticated() &&
+                     (resource.data.ownerId == request.auth.uid ||
+                      (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                      hasRole('vet') || 
+                      hasRole('admin'));
+      
+      // Création: propriétaire (via ownerId), vets, ou admin
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.ownerId == request.auth.uid || 
+                        hasRole('vet') || 
+                        hasRole('admin'));
+      
+      // Modification: propriétaire (via ownerId OU si le pet lui appartient), vets, ou admin
+      allow update: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('vet') || 
+                        hasRole('admin'));
+      
+      // Suppression: propriétaire (via ownerId OU si le pet appartient à l'utilisateur), vets, ou admin
+      allow delete: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('vet') || 
+                        hasRole('admin'));
+    }
+    
+    // Règles pour la collection wellnessTracking (suivi bien-être)
+    match /wellnessTracking/{entryId} {
+      // Lecture: propriétaire (via ownerId OU si le pet lui appartient) ou admin
+      allow read: if isAuthenticated() &&
+                     (resource.data.ownerId == request.auth.uid ||
+                      (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                      hasRole('admin'));
+      
+      // Création: propriétaire uniquement
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      
+      // Modification: propriétaire (via ownerId OU si le pet lui appartient) ou admin
+      allow update: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('admin'));
+      
+      // Suppression: propriétaire (via ownerId OU si le pet lui appartient) ou admin
+      allow delete: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('admin'));
+    }
+    
+    // Règles pour la collection wellnessAlerts (alertes bien-être)
+    match /wellnessAlerts/{alertId} {
+      // Lecture: propriétaire (via ownerId OU si le pet lui appartient) ou admin
+      allow read: if isAuthenticated() &&
+                     (resource.data.ownerId == request.auth.uid ||
+                      (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                      hasRole('admin'));
+      
+      // Création: propriétaire uniquement (créées automatiquement par le système)
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      
+      // Modification: propriétaire (via ownerId OU si le pet lui appartient) ou admin
+      allow update: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('admin'));
+      
+      // Suppression: propriétaire (via ownerId OU si le pet lui appartient) ou admin
+      allow delete: if isAuthenticated() &&
+                       (resource.data.ownerId == request.auth.uid ||
+                        (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid) ||
+                        hasRole('admin'));
     }
     
     // Règles pour la collection reminders

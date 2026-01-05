@@ -6,7 +6,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { getPetsByOwnerId, Pet, getRemindersByOwnerId } from '../../services/firestoreService';
-import { PremiumBadge } from '../../components';
+import { PremiumBadge, NotificationConsentModal, NotificationBell } from '../../components';
+import {
+  hasShownConsentModal,
+  markConsentAsShown,
+  requestNotificationPermissions,
+  saveNotificationPreferences,
+  registerForPushNotifications,
+  savePushTokenToFirestore,
+} from '../../services/notificationService';
 
 interface HomeScreenProps {
   navigation: any;
@@ -19,6 +27,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
   const [pets, setPets] = useState<Pet[]>([]);
   const [remindersCount, setRemindersCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [showNotificationConsent, setShowNotificationConsent] = useState(false);
 
   const loadUserData = useCallback(async () => {
     if (!user?.id) return;
@@ -41,8 +50,92 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
   useEffect(() => {
     if (user?.id) {
       loadUserData();
+      checkNotificationConsent();
     }
   }, [user]);
+
+  // Vérifier si on doit afficher le modal de consentement de notifications
+  const checkNotificationConsent = async () => {
+    try {
+      const hasShown = await hasShownConsentModal();
+      if (!hasShown) {
+        // Attendre un peu avant d'afficher pour une meilleure UX
+        setTimeout(() => {
+          setShowNotificationConsent(true);
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Error checking notification consent:', error);
+    }
+  };
+
+  // Gérer l'acceptation des notifications
+  const handleAcceptNotifications = async () => {
+    try {
+      // Marquer comme montré
+      await markConsentAsShown();
+      
+      // Demander les permissions
+      const granted = await requestNotificationPermissions();
+      
+      if (granted) {
+        // Sauvegarder les préférences (tout activé par défaut)
+        await saveNotificationPreferences({
+          enabled: true,
+          reminders: true,
+          appointments: true,
+          vaccinations: true,
+          health: true,
+          marketing: false,
+          sound: true,
+          vibration: true,
+          badge: true,
+          lockScreen: false, // Masquer les données sensibles par défaut
+        }, user?.id);
+
+        // Enregistrer le token pour les push notifications
+        const token = await registerForPushNotifications();
+        if (token && user?.id) {
+          await savePushTokenToFirestore(user.id, token);
+        }
+
+        console.log('✅ Notifications activées');
+      }
+      
+      setShowNotificationConsent(false);
+    } catch (error) {
+      console.error('Error accepting notifications:', error);
+      setShowNotificationConsent(false);
+    }
+  };
+
+  // Gérer le refus des notifications
+  const handleDeclineNotifications = async () => {
+    try {
+      // Marquer comme montré
+      await markConsentAsShown();
+      
+      // Sauvegarder les préférences (tout désactivé)
+      await saveNotificationPreferences({
+        enabled: false,
+        reminders: false,
+        appointments: false,
+        vaccinations: false,
+        health: false,
+        marketing: false,
+        sound: false,
+        vibration: false,
+        badge: false,
+        lockScreen: false,
+      }, user?.id);
+
+      console.log('❌ Notifications refusées');
+      setShowNotificationConsent(false);
+    } catch (error) {
+      console.error('Error declining notifications:', error);
+      setShowNotificationConsent(false);
+    }
+  };
 
   // Rafraîchir quand on revient sur l'écran
   useFocusEffect(
@@ -58,6 +151,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
     if (hour < 12) return t('home.morningGreeting');
     if (hour < 18) return t('home.afternoonGreeting');
     return t('home.eveningGreeting');
+  };
+
+  const handleAddPet = () => {
+    // Si l'utilisateur n'est pas premium et a déjà au moins un animal
+    // -> Redirection vers Premium (feature multi-animaux premium)
+    if (!user?.isPremium && pets.length >= 1) {
+      navigation.getParent()?.navigate('ProfileTab', { screen: 'Premium' });
+    } else {
+      // Sinon, permettre l'ajout (premier animal gratuit ou utilisateur premium)
+      navigation.getParent()?.navigate('ProfileTab', { screen: 'AddPet' });
+    }
   };
 
   const quickActions = [
@@ -96,6 +200,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
       bgColor: '#E0F7FA',
       isPremium: false,
       onPress: () => navigation.getParent()?.navigate('ProfileTab', { screen: 'Documents' })
+    },
+    { 
+      id: 'appointments', 
+      icon: 'calendar-outline', 
+      title: 'Mes rendez-vous', 
+      color: '#673AB7', 
+      bgColor: '#EDE7F6',
+      isPremium: false,
+      onPress: () => navigation.getParent()?.navigate('ProfileTab', { screen: 'MyAppointments' })
     },
     // Actions Premium
     { 
@@ -148,19 +261,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
               <Text style={styles.subGreeting}>{getGreeting()}</Text>
             </View>
             
-            <TouchableOpacity 
-              style={styles.avatarContainer}
-              onPress={() => {
-                // Naviguer vers le profil utilisateur selon le rôle
-                if (user?.role === 'owner') {
-                  navigation.getParent()?.navigate('ProfileTab', { screen: 'OwnerProfile' });
-                } else if (user?.role === 'vet') {
-                  navigation.getParent()?.navigate('VetProfileTab', { screen: 'VetProfileMain' });
-                } else {
-                  navigation.getParent()?.navigate('ProfileTab');
-                }
-              }}
-              activeOpacity={0.8}
+            <View style={styles.headerActions}>
+              <NotificationBell 
+                onPress={() => navigation.navigate('ScheduledNotifications')}
+              />
+              <TouchableOpacity 
+                style={styles.avatarContainer}
+                onPress={() => {
+                  // Naviguer vers le profil utilisateur selon le rôle
+                  if (user?.role === 'owner') {
+                    navigation.getParent()?.navigate('ProfileTab', { screen: 'OwnerProfile' });
+                  } else if (user?.role === 'vet') {
+                    navigation.getParent()?.navigate('VetProfileTab', { screen: 'VetProfileMain' });
+                  } else {
+                    navigation.getParent()?.navigate('ProfileTab');
+                  }
+                }}
+                activeOpacity={0.8}
             >
               <View style={styles.avatarCircle}>
                 <Text style={styles.avatarText}>
@@ -173,6 +290,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
                 )}
               </View>
             </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -246,40 +364,49 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
           contentContainerStyle={styles.petsScrollContainer}
         >
           {pets.map((pet) => (
-            <TouchableOpacity 
-              key={pet.id}
-              style={styles.petCard}
-              onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'PetProfile' })}
-              activeOpacity={0.8}
-            >
-              {pet.avatarUrl ? (
-                <Image 
-                  source={{ uri: pet.avatarUrl }} 
-                  style={styles.petImage}
-                />
-              ) : (
-                <View style={styles.petEmojiContainer}>
-                  <Text style={styles.petEmoji}>{pet.emoji || '🐾'}</Text>
+            <View key={pet.id} style={styles.petCardWrapper}>
+              <TouchableOpacity 
+                style={styles.petCard}
+                onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'PetProfile' })}
+                activeOpacity={0.8}
+              >
+                {pet.avatarUrl ? (
+                  <Image 
+                    source={{ uri: pet.avatarUrl }} 
+                    style={styles.petImage}
+                  />
+                ) : (
+                  <View style={styles.petEmojiContainer}>
+                    <Text style={styles.petEmoji}>{pet.emoji || '🐾'}</Text>
+                  </View>
+                )}
+                <Text style={styles.petName}>{pet.name}</Text>
+                <Text style={styles.petBreed}>{pet.breed}</Text>
+                <View style={styles.petBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.teal} />
+                  <Text style={styles.petBadgeText}>À jour</Text>
                 </View>
-              )}
-              <Text style={styles.petName}>{pet.name}</Text>
-              <Text style={styles.petBreed}>{pet.breed}</Text>
-              <View style={styles.petBadge}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.teal} />
-                <Text style={styles.petBadgeText}>À jour</Text>
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.healthRecordButton}
+                onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'PetHealthRecord', params: { pet } })}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="medical-outline" size={16} color={colors.teal} />
+                <Text style={styles.healthRecordButtonText}>Carnet de santé</Text>
+              </TouchableOpacity>
+            </View>
           ))}
 
           <TouchableOpacity 
             style={styles.addPetCard}
-            onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'AddPet' })}
+            onPress={handleAddPet}
             activeOpacity={0.8}
           >
             <View style={styles.addPetIcon}>
-              <Ionicons name="add" size={36} color={colors.teal} />
+              <Ionicons name={user?.isPremium || pets.length === 0 ? "add" : "star"} size={36} color={user?.isPremium || pets.length === 0 ? colors.teal : "#FFB300"} />
             </View>
-            <Text style={styles.addPetText}>Ajouter</Text>
+            <Text style={styles.addPetText}>{user?.isPremium || pets.length === 0 ? "Ajouter" : "Premium"}</Text>
           </TouchableOpacity>
         </ScrollView>
       ) : (
@@ -358,7 +485,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
       {/* Bouton d'urgence flottant (ROUGE - toujours visible) */}
       <TouchableOpacity 
         style={styles.floatingEmergencyButton}
-        onPress={() => navigation.getParent()?.navigate('SearchTab', { screen: 'EmergencyMode' })}
+        onPress={() => navigation.getParent()?.navigate('SearchTab', { 
+          screen: 'Emergency',
+          params: { isEmergencyMode: true }
+        })}
         activeOpacity={0.85}
       >
         <View style={styles.emergencyIconContainer}>
@@ -379,6 +509,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
           <Text style={styles.floatingButtonText}>Passer à Premium</Text>
         </TouchableOpacity>
       )}
+
+      {/* Modal de consentement des notifications */}
+      <NotificationConsentModal
+        visible={showNotificationConsent}
+        onAccept={handleAcceptNotifications}
+        onDecline={handleDeclineNotifications}
+      />
     </View>
   );
 };
@@ -430,8 +567,12 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.lightBlue,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   avatarContainer: {
-    marginLeft: spacing.md,
+    marginLeft: spacing.xs,
   },
   avatarCircle: {
     width: 60,
@@ -684,6 +825,25 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     color: colors.teal,
     fontWeight: typography.fontWeight.semiBold,
+  },
+  petCardWrapper: {
+    marginRight: spacing.md,
+  },
+  healthRecordButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.lightBlue,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.xs,
+    gap: spacing.xs,
+  },
+  healthRecordButtonText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.teal,
   },
   addPetCard: {
     width: 140,

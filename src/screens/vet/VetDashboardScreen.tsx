@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { getAppointmentsByVetId, getPatientsByVetId } from '../../services/firestoreService';
+import { NotificationBell } from '../../components';
 
 interface VetDashboardScreenProps {
   navigation: any;
@@ -42,10 +43,13 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
   // Calculate stats from real data
   const today = new Date().toISOString().split('T')[0];
   const todayAppointments = appointments.filter(apt => 
-    apt.date === today && apt.status === 'upcoming'
+    apt.date === today && (apt.status === 'confirmed' || apt.status === 'upcoming')
   );
   const pendingAppointments = appointments.filter(apt => 
-    apt.status === 'upcoming'
+    apt.status === 'pending'
+  );
+  const confirmedAppointments = appointments.filter(apt => 
+    apt.status === 'confirmed'
   );
   
   const stats = {
@@ -92,21 +96,26 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
           <Text style={styles.greeting}>{getGreeting()} Dr. {user?.lastName}</Text>
           <Text style={styles.subtitle}>Tableau de bord vétérinaire</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.profileButton}
-          onPress={() => navigation.navigate('VetProfile')}
-        >
-          {user?.avatarUrl ? (
-            <Image 
-              source={{ uri: user.avatarUrl }}
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={styles.profilePlaceholder}>
-              <Ionicons name="person" size={28} color={colors.white} />
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <NotificationBell 
+            onPress={() => navigation.navigate('ScheduledNotifications')}
+          />
+          <TouchableOpacity 
+            style={styles.profileButton}
+            onPress={() => navigation.navigate('VetProfile')}
+          >
+            {user?.avatarUrl ? (
+              <Image 
+                source={{ uri: user.avatarUrl }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.profilePlaceholder}>
+                <Ionicons name="person" size={28} color={colors.white} />
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats Cards */}
@@ -230,38 +239,42 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Demandes en attente</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{pendingRequests.length}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{pendingAppointments.length}</Text>
+            </View>
+            <TouchableOpacity onPress={() => navigation.navigate('ManageAppointments')}>
+              <Text style={styles.seeAllText}>Gérer</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
         {pendingRequests.length > 0 ? (
           pendingRequests.map((request) => (
-            <View key={request.id} style={styles.requestCard}>
+            <TouchableOpacity 
+              key={request.id} 
+              style={styles.requestCard}
+              onPress={() => navigation.navigate('ManageAppointments')}
+            >
               <View style={styles.requestIcon}>
                 <Ionicons name="alert-circle" size={28} color="#FFB347" />
               </View>
 
               <View style={styles.requestInfo}>
-                <Text style={styles.petName}>{request.petName}</Text>
+                <Text style={styles.petName}>🐾 {request.petName}</Text>
                 <Text style={styles.ownerName}>{request.ownerName}</Text>
+                {request.reason && (
+                  <Text style={styles.reasonText} numberOfLines={1}>
+                    {request.reason}
+                  </Text>
+                )}
                 <Text style={styles.requestDate}>
-                  Demandé le {new Date(request.requestDate).toLocaleDateString('fr-FR')}
-                </Text>
-                <Text style={styles.preferredDate}>
-                  Souhaité pour le {new Date(request.preferredDate).toLocaleDateString('fr-FR')}
+                  Souhaité: {request.date} à {request.time}
                 </Text>
               </View>
 
-              <View style={styles.requestActions}>
-                <TouchableOpacity style={styles.acceptButton}>
-                  <Ionicons name="checkmark-circle" size={28} color="#4ECDC4" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.rejectButton}>
-                  <Ionicons name="close-circle" size={28} color="#FF6B6B" />
-                </TouchableOpacity>
-              </View>
-            </View>
+              <Ionicons name="chevron-forward" size={24} color={colors.gray} />
+            </TouchableOpacity>
           ))
         ) : (
           <View style={styles.emptyState}>
@@ -298,6 +311,11 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.gray,
     marginTop: spacing.xs,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   profileButton: {
     padding: spacing.xs,
@@ -442,6 +460,12 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.gray,
     marginBottom: spacing.sm,
+  },
+  reasonText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.navy,
+    fontStyle: 'italic',
+    marginTop: spacing.xs,
   },
   appointmentMeta: {
     flexDirection: 'row',

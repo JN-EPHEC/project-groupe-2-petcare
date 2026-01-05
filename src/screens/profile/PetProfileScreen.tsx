@@ -202,7 +202,7 @@ export const PetProfileScreen: React.FC<PetProfileScreenProps> = ({ navigation }
 
         <TouchableOpacity 
           style={styles.button}
-          onPress={() => navigation.navigate('HealthRecord')}
+          onPress={() => navigation.navigate('PetHealthRecord', { pet })}
         >
           <Text style={styles.buttonText}>{t('profile.petProfile.myHealthRecord')}</Text>
           <View style={styles.buttonArrow}>

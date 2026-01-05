@@ -109,10 +109,17 @@ export const getPetsByOwnerId = async (ownerId: string): Promise<Pet[]> => {
     const q = query(collection(db, 'pets'), where('ownerId', '==', ownerId));
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    const pets = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Pet[];
+    
+    console.log('📋 getPetsByOwnerId - Nombre d\'animaux:', pets.length);
+    pets.forEach(pet => {
+      console.log(`🐾 Animal: ${pet.name} - avatarUrl: ${pet.avatarUrl || 'AUCUNE'}`);
+    });
+    
+    return pets;
   } catch (error) {
     console.error('Error getting pets:', error);
     return [];
@@ -121,14 +128,24 @@ export const getPetsByOwnerId = async (ownerId: string): Promise<Pet[]> => {
 
 export const addPet = async (petData: Omit<Pet, 'id'>): Promise<string> => {
   try {
-    const docRef = await addDoc(collection(db, 'pets'), {
+    console.log('💾 addPet - Données reçues:', petData);
+    console.log('💾 addPet - avatarUrl:', petData.avatarUrl);
+    
+    const dataToSave = {
       ...petData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+    
+    console.log('💾 addPet - Données à sauvegarder dans Firebase:', dataToSave);
+    
+    const docRef = await addDoc(collection(db, 'pets'), dataToSave);
+    
+    console.log('✅ addPet - Animal sauvegardé avec ID:', docRef.id);
+    
     return docRef.id;
   } catch (error) {
-    console.error('Error adding pet:', error);
+    console.error('❌ addPet - Error adding pet:', error);
     throw error;
   }
 };
@@ -257,80 +274,6 @@ export const deleteHealthRecord = async (recordId: string): Promise<void> => {
     await deleteDoc(doc(db, 'health_records', recordId));
   } catch (error) {
     console.error('Error deleting health record:', error);
-    throw error;
-  }
-};
-
-// ==================== VACCINATIONS ====================
-
-export const getVaccinationsByOwnerId = async (ownerId: string): Promise<Vaccination[]> => {
-  try {
-    const q = query(
-      collection(db, 'vaccinations'), 
-      where('ownerId', '==', ownerId),
-      orderBy('date', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Vaccination[];
-  } catch (error) {
-    console.error('Error getting vaccinations:', error);
-    return [];
-  }
-};
-
-export const getVaccinationsByPetId = async (petId: string): Promise<Vaccination[]> => {
-  try {
-    const q = query(
-      collection(db, 'vaccinations'), 
-      where('petId', '==', petId),
-      orderBy('date', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Vaccination[];
-  } catch (error) {
-    console.error('Error getting vaccinations by pet:', error);
-    return [];
-  }
-};
-
-export const addVaccination = async (vaccinationData: Omit<Vaccination, 'id'>): Promise<string> => {
-  try {
-    const docRef = await addDoc(collection(db, 'vaccinations'), {
-      ...vaccinationData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
-  } catch (error) {
-    console.error('Error adding vaccination:', error);
-    throw error;
-  }
-};
-
-export const updateVaccination = async (vaccinationId: string, data: Partial<Vaccination>): Promise<void> => {
-  try {
-    await updateDoc(doc(db, 'vaccinations', vaccinationId), {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error('Error updating vaccination:', error);
-    throw error;
-  }
-};
-
-export const deleteVaccination = async (vaccinationId: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, 'vaccinations', vaccinationId));
-  } catch (error) {
-    console.error('Error deleting vaccination:', error);
     throw error;
   }
 };
@@ -480,17 +423,26 @@ export const deleteDocument = async (documentId: string): Promise<void> => {
 
 export const getAppointmentsByOwnerId = async (ownerId: string): Promise<Appointment[]> => {
   try {
+    // TEMPORAIRE : Sans orderBy pour éviter l'erreur d'index
+    // Une fois l'index créé manuellement, réactivez orderBy('date', 'asc')
     const q = query(
       collection(db, 'appointments'), 
-      where('ownerId', '==', ownerId),
-      orderBy('date', 'asc')
+      where('ownerId', '==', ownerId)
+      // orderBy('date', 'asc') // ← À RÉACTIVER après création de l'index
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    const appointments = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Appointment[];
+    
+    // Tri côté client en attendant l'index
+    return appointments.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return dateA.getTime() - dateB.getTime();
+    });
   } catch (error) {
     console.error('Error getting appointments:', error);
     return [];
@@ -499,17 +451,26 @@ export const getAppointmentsByOwnerId = async (ownerId: string): Promise<Appoint
 
 export const getAppointmentsByVetId = async (vetId: string): Promise<Appointment[]> => {
   try {
+    // TEMPORAIRE : Sans orderBy pour éviter l'erreur d'index
+    // Une fois l'index créé manuellement, réactivez orderBy('date', 'asc')
     const q = query(
       collection(db, 'appointments'), 
-      where('vetId', '==', vetId),
-      orderBy('date', 'asc')
+      where('vetId', '==', vetId)
+      // orderBy('date', 'asc') // ← À RÉACTIVER après création de l'index
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    const appointments = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Appointment[];
+    
+    // Tri côté client en attendant l'index
+    return appointments.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return dateA.getTime() - dateB.getTime();
+    });
   } catch (error) {
     console.error('Error getting vet appointments:', error);
     return [];
@@ -1611,6 +1572,347 @@ export const getSubscriptionStats = async (): Promise<any> => {
   } catch (error) {
     console.error('Erreur récupération stats abonnements:', error);
     return null;
+  }
+};
+
+// Aliases pour les fonctions d'appointments
+export const createAppointment = addAppointment;
+
+export const deleteAppointment = async (appointmentId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'appointments', appointmentId));
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    throw error;
+  }
+};
+
+// ==================== GESTION DU CARNET DE SANTÉ ====================
+
+/**
+ * Interfaces pour le carnet de santé
+ */
+export interface Vaccination {
+  id: string;
+  petId: string;
+  petName: string;
+  ownerId: string;
+  type: string; // Type de vaccin (max 50 caractères)
+  date: string; // Date au format ISO
+  nextDueDate?: string; // Prochaine date de rappel
+  vet?: string; // Nom du vétérinaire
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Treatment {
+  id: string;
+  petId: string;
+  petName: string;
+  ownerId: string;
+  type: 'antipuce' | 'antibiotique' | 'vermifuge' | 'autre'; // Type de traitement
+  name: string; // Nom du traitement
+  startDate: string; // Date de début
+  endDate: string; // Date de fin
+  frequency?: string; // Fréquence (ex: "2 fois par jour")
+  dosage?: string; // Dosage
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MedicalHistory {
+  id: string;
+  petId: string;
+  petName: string;
+  ownerId: string;
+  type: 'maladie' | 'allergie' | 'chirurgie' | 'autre'; // Type d'antécédent
+  title: string; // Titre de l'antécédent
+  description: string; // Description (max 200 caractères)
+  date: string; // Date de l'incident
+  documents?: string[]; // URLs des documents attachés
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==================== VACCINATIONS ====================
+
+/**
+ * Ajouter un vaccin
+ */
+export const addVaccination = async (vaccination: Omit<Vaccination, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  try {
+    // Validation de la date
+    const date = new Date(vaccination.date);
+    if (isNaN(date.getTime())) {
+      throw new Error('Format de date invalide');
+    }
+
+    // Validation du type (max 50 caractères)
+    if (vaccination.type.length > 50) {
+      throw new Error('Le type de vaccin ne peut pas dépasser 50 caractères');
+    }
+
+    const vaccinationData = {
+      ...vaccination,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const docRef = await addDoc(collection(db, 'vaccinations'), vaccinationData);
+    console.log('✅ Vaccin ajouté:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Erreur ajout vaccin:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtenir les vaccins d'un animal
+ */
+export const getVaccinationsByPetId = async (petId: string): Promise<Vaccination[]> => {
+  try {
+    const q = query(
+      collection(db, 'vaccinations'),
+      where('petId', '==', petId),
+      orderBy('date', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vaccination));
+  } catch (error) {
+    console.error('Erreur récupération vaccins:', error);
+    return [];
+  }
+};
+
+/**
+ * Modifier un vaccin
+ */
+export const updateVaccination = async (vaccinationId: string, updates: Partial<Vaccination>): Promise<void> => {
+  try {
+    // Validation de la date si elle est modifiée
+    if (updates.date) {
+      const date = new Date(updates.date);
+      if (isNaN(date.getTime())) {
+        throw new Error('Format de date invalide');
+      }
+    }
+
+    // Validation du type si il est modifié
+    if (updates.type && updates.type.length > 50) {
+      throw new Error('Le type de vaccin ne peut pas dépasser 50 caractères');
+    }
+
+    const vaccinationRef = doc(db, 'vaccinations', vaccinationId);
+    await updateDoc(vaccinationRef, {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+    console.log('✅ Vaccin modifié:', vaccinationId);
+  } catch (error) {
+    console.error('❌ Erreur modification vaccin:', error);
+    throw error;
+  }
+};
+
+/**
+ * Supprimer un vaccin
+ */
+export const deleteVaccination = async (vaccinationId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'vaccinations', vaccinationId));
+    console.log('✅ Vaccin supprimé:', vaccinationId);
+  } catch (error) {
+    console.error('❌ Erreur suppression vaccin:', error);
+    throw error;
+  }
+};
+
+// ==================== TRAITEMENTS ====================
+
+/**
+ * Ajouter un traitement
+ */
+export const addTreatment = async (treatment: Omit<Treatment, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  try {
+    // Validation des dates
+    const startDate = new Date(treatment.startDate);
+    const endDate = new Date(treatment.endDate);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new Error('Format de date invalide');
+    }
+
+    if (endDate < startDate) {
+      throw new Error('La date de fin doit être après la date de début');
+    }
+
+    const treatmentData = {
+      ...treatment,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const docRef = await addDoc(collection(db, 'treatments'), treatmentData);
+    console.log('✅ Traitement ajouté:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Erreur ajout traitement:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtenir les traitements d'un animal
+ */
+export const getTreatmentsByPetId = async (petId: string): Promise<Treatment[]> => {
+  try {
+    const q = query(
+      collection(db, 'treatments'),
+      where('petId', '==', petId),
+      orderBy('startDate', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Treatment));
+  } catch (error) {
+    console.error('Erreur récupération traitements:', error);
+    return [];
+  }
+};
+
+/**
+ * Modifier un traitement
+ */
+export const updateTreatment = async (treatmentId: string, updates: Partial<Treatment>): Promise<void> => {
+  try {
+    // Validation des dates si elles sont modifiées
+    if (updates.startDate || updates.endDate) {
+      const startDate = updates.startDate ? new Date(updates.startDate) : null;
+      const endDate = updates.endDate ? new Date(updates.endDate) : null;
+
+      if ((startDate && isNaN(startDate.getTime())) || (endDate && isNaN(endDate.getTime()))) {
+        throw new Error('Format de date invalide');
+      }
+    }
+
+    const treatmentRef = doc(db, 'treatments', treatmentId);
+    await updateDoc(treatmentRef, {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+    console.log('✅ Traitement modifié:', treatmentId);
+  } catch (error) {
+    console.error('❌ Erreur modification traitement:', error);
+    throw error;
+  }
+};
+
+/**
+ * Supprimer un traitement
+ */
+export const deleteTreatment = async (treatmentId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'treatments', treatmentId));
+    console.log('✅ Traitement supprimé:', treatmentId);
+  } catch (error) {
+    console.error('❌ Erreur suppression traitement:', error);
+    throw error;
+  }
+};
+
+// ==================== ANTÉCÉDENTS MÉDICAUX ====================
+
+/**
+ * Ajouter un antécédent médical
+ */
+export const addMedicalHistory = async (history: Omit<MedicalHistory, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  try {
+    // Validation de la date
+    const date = new Date(history.date);
+    if (isNaN(date.getTime())) {
+      throw new Error('Format de date invalide');
+    }
+
+    // Validation de la description (max 200 caractères)
+    if (history.description.length > 200) {
+      throw new Error('La description ne peut pas dépasser 200 caractères');
+    }
+
+    const historyData = {
+      ...history,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const docRef = await addDoc(collection(db, 'medicalHistory'), historyData);
+    console.log('✅ Antécédent médical ajouté:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Erreur ajout antécédent:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtenir les antécédents médicaux d'un animal
+ */
+export const getMedicalHistoryByPetId = async (petId: string): Promise<MedicalHistory[]> => {
+  try {
+    const q = query(
+      collection(db, 'medicalHistory'),
+      where('petId', '==', petId),
+      orderBy('date', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MedicalHistory));
+  } catch (error) {
+    console.error('Erreur récupération antécédents:', error);
+    return [];
+  }
+};
+
+/**
+ * Modifier un antécédent médical
+ */
+export const updateMedicalHistory = async (historyId: string, updates: Partial<MedicalHistory>): Promise<void> => {
+  try {
+    // Validation de la date si elle est modifiée
+    if (updates.date) {
+      const date = new Date(updates.date);
+      if (isNaN(date.getTime())) {
+        throw new Error('Format de date invalide');
+      }
+    }
+
+    // Validation de la description si elle est modifiée
+    if (updates.description && updates.description.length > 200) {
+      throw new Error('La description ne peut pas dépasser 200 caractères');
+    }
+
+    const historyRef = doc(db, 'medicalHistory', historyId);
+    await updateDoc(historyRef, {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+    console.log('✅ Antécédent médical modifié:', historyId);
+  } catch (error) {
+    console.error('❌ Erreur modification antécédent:', error);
+    throw error;
+  }
+};
+
+/**
+ * Supprimer un antécédent médical
+ */
+export const deleteMedicalHistory = async (historyId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'medicalHistory', historyId));
+    console.log('✅ Antécédent médical supprimé:', historyId);
+  } catch (error) {
+    console.error('❌ Erreur suppression antécédent:', error);
+    throw error;
   }
 };
 

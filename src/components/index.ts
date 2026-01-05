@@ -10,3 +10,5 @@ export { WellnessAlert } from './WellnessAlert';
 export { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 export { AddressAutocomplete } from './AddressAutocomplete';
 export { CookieConsentModal } from './CookieConsentModal';
+export { NotificationConsentModal } from './NotificationConsentModal';
+export { NotificationBell } from './NotificationBell';

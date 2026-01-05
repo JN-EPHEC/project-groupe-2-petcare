@@ -1,254 +1,562 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
-import { useTranslation } from 'react-i18next';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  RefreshControl,
+  Linking,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { getDocumentsByOwnerId } from '../../services/firestoreService';
+import { getDocumentsByOwnerId, deleteDocument as deleteDocumentFromFirestore, type Document } from '../../services/firestoreService';
 
 interface DocumentsScreenProps {
   navigation: any;
 }
 
 export const DocumentsScreen: React.FC<DocumentsScreenProps> = ({ navigation }) => {
-  const { t } = useTranslation();
-  const { currentPet, user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [allDocuments, setAllDocuments] = useState<any[]>([]);
+  const { user, pets } = useAuth();
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const loadDocuments = async () => {
+    if (user?.id) {
+      try {
+        console.log('📄 Chargement des documents...');
+        const docs = await getDocumentsByOwnerId(user.id);
+        console.log('✅ Documents chargés:', docs.length);
+        setDocuments(docs);
+      } catch (error) {
+        console.error('❌ Erreur chargement documents:', error);
+        setDocuments([]);
+      } finally {
+        setIsLoading(false);
+        setRefreshing(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const loadDocuments = async () => {
-      if (user?.id) {
-        try {
-          const docs = await getDocumentsByOwnerId(user.id);
-          setAllDocuments(docs);
-        } catch (error) {
-          console.error('Error loading documents:', error);
-          setAllDocuments([]);
-        }
-      }
-    };
     loadDocuments();
   }, [user?.id]);
 
-  // Filter documents by search query
-  const documents = searchQuery.trim()
-    ? allDocuments.filter(doc => 
-        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.uploadDate.includes(searchQuery)
-      )
-    : allDocuments;
+  useFocusEffect(
+    useCallback(() => {
+      loadDocuments();
+    }, [user?.id])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadDocuments();
+  };
+
+  const formatDate = (dateStr: string): string => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getPetName = (petId: string): string => {
+    const pet = pets.find((p) => p.id === petId);
+    return pet?.name || 'Animal inconnu';
+  };
+
+  const getDocumentIcon = (type: string): any => {
+    switch (type) {
+      case 'vaccination':
+        return 'medical';
+      case 'medical':
+        return 'heart';
+      case 'analysis':
+        return 'flask';
+      case 'prescription':
+        return 'document-text';
+      case 'xray':
+        return 'scan';
+      case 'other':
+      default:
+        return 'document';
+    }
+  };
+
+  const getDocumentColor = (type: string): string => {
+    switch (type) {
+      case 'vaccination':
+        return '#4CAF50';
+      case 'medical':
+        return '#2196F3';
+      case 'analysis':
+        return '#9C27B0';
+      case 'prescription':
+        return '#FF9800';
+      case 'xray':
+        return '#F44336';
+      case 'other':
+      default:
+        return colors.gray;
+    }
+  };
+
+  const handleViewDocument = (doc: Document) => {
+    setSelectedDoc(doc);
+    setShowDetailsModal(true);
+  };
+
+  const handleDownloadDocument = async (doc: Document) => {
+    try {
+      if (doc.fileUrl) {
+        console.log('📥 Téléchargement du document:', doc.fileUrl);
+        
+        if (Platform.OS === 'web') {
+          // Sur web, ouvrir dans un nouvel onglet
+          window.open(doc.fileUrl, '_blank');
+        } else {
+          // Sur mobile, ouvrir avec le navigateur système
+          await Linking.openURL(doc.fileUrl);
+        }
+      } else {
+        if (Platform.OS === 'web') {
+          window.alert('URL du document non disponible');
+        } else {
+          Alert.alert('Erreur', 'URL du document non disponible');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur téléchargement:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Impossible de télécharger le document');
+      } else {
+        Alert.alert('Erreur', 'Impossible de télécharger le document');
+      }
+    }
+  };
+
+  const handleDeleteDocument = async (doc: Document) => {
+    const confirmMessage = `Êtes-vous sûr de vouloir supprimer "${doc.name}" ?`;
+
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
+      await performDelete(doc);
+    } else {
+      Alert.alert(
+        'Supprimer le document',
+        confirmMessage,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Supprimer',
+            style: 'destructive',
+            onPress: () => performDelete(doc),
+          },
+        ]
+      );
+    }
+  };
+
+  const performDelete = async (doc: Document) => {
+    try {
+      setIsDeleting(true);
+      console.log('🗑️ Suppression du document:', doc.id);
+      
+      await deleteDocumentFromFirestore(doc.id);
+      
+      console.log('✅ Document supprimé avec succès');
+      
+      // Fermer le modal si ouvert
+      if (showDetailsModal) {
+        setShowDetailsModal(false);
+        setSelectedDoc(null);
+      }
+      
+      // Recharger la liste
+      await loadDocuments();
+      
+      if (Platform.OS === 'web') {
+        window.alert('Document supprimé avec succès');
+      } else {
+        Alert.alert('Succès', 'Document supprimé avec succès');
+      }
+    } catch (error) {
+      console.error('❌ Erreur suppression:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Erreur lors de la suppression');
+      } else {
+        Alert.alert('Erreur', 'Impossible de supprimer le document');
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const renderDocumentCard = (doc: Document) => {
+    const iconColor = getDocumentColor(doc.type || 'other');
 
   return (
-    <ScrollView style={styles.container}>
       <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
+        key={doc.id}
+        style={styles.documentCard}
+        onPress={() => handleViewDocument(doc)}
+        activeOpacity={0.7}
       >
-        <Ionicons name="arrow-back" size={30} color={colors.navy} />
+        <View style={[styles.documentIcon, { backgroundColor: `${iconColor}15` }]}>
+          <Ionicons name={getDocumentIcon(doc.type || 'other')} size={28} color={iconColor} />
+        </View>
+        
+        <View style={styles.documentContent}>
+          <Text style={styles.documentName} numberOfLines={2}>
+            {doc.name || 'Document sans nom'}
+          </Text>
+          <Text style={styles.documentPet}>🐾 {getPetName(doc.petId)}</Text>
+          <Text style={styles.documentDate}>📅 {formatDate(doc.uploadDate || doc.createdAt)}</Text>
+        </View>
+
+        <View style={styles.documentActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleDownloadDocument(doc);
+            }}
+          >
+            <Ionicons name="download-outline" size={20} color={colors.teal} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleDeleteDocument(doc);
+            }}
+          >
+            <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
+    );
+  };
 
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={28} color={colors.navy} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Mes Documents</Text>
+          <View style={{ width: 28 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.teal} />
+          <Text style={styles.loadingText}>Chargement...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.petInfo}>
-          <View style={styles.petImagePlaceholder}>
-            <Ionicons name="paw" size={35} color={colors.navy} />
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={28} color={colors.navy} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Mes Documents</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('AddDocument')}>
+          <Ionicons name="add-circle-outline" size={28} color={colors.teal} />
+        </TouchableOpacity>
           </View>
-          <Text style={styles.petName}>{currentPet?.name || 'Pet'}</Text>
-          <View style={styles.locationRow}>
-            <Ionicons name="location" size={14} color={colors.black} />
-            <Text style={styles.location}>{currentPet?.location || 'Location'}</Text>
+
+      {/* Stats */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statBox}>
+          <Text style={styles.statNumber}>{documents.length}</Text>
+          <Text style={styles.statLabel}>Documents</Text>
           </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statNumber}>{pets.length}</Text>
+          <Text style={styles.statLabel}>Animaux</Text>
         </View>
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>{t('health.documents.title')}</Text>
-        </View>
+      {/* Documents List */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {documents.length > 0 ? (
+          documents.map(renderDocumentCard)
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="document-text-outline" size={80} color={colors.lightGray} />
+            <Text style={styles.emptyTitle}>Aucun document</Text>
+            <Text style={styles.emptySubtitle}>
+              Ajoutez vos premiers documents médicaux
+            </Text>
+          </View>
+        )}
+      </ScrollView>
 
-        {/* Search Bar */}
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color={colors.gray} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('common.search')}
-            placeholderTextColor={colors.gray}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={20} color={colors.gray} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.documentsContainer}>
-          {documents.length > 0 ? (
-            documents.map((doc) => (
-              <TouchableOpacity key={doc.id} style={styles.documentItem}>
-                <Ionicons name="document-text" size={40} color={colors.navy} />
-                <View style={styles.documentInfo}>
-                  <Text style={styles.documentName}>{doc.name}</Text>
-                  <Text style={styles.documentDate}>{t('health.documents.uploadedOn')} {doc.uploadDate}</Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={64} color={colors.gray} />
-              <Text style={styles.emptyTitle}>
-                {searchQuery.trim() ? 'Aucun document trouvé' : t('health.documents.noDocuments')}
-              </Text>
-              {searchQuery.trim() ? (
-                <Text style={styles.emptyText}>
-                  Essayez avec un autre nom de document
-                </Text>
-              ) : (
-                <Text style={styles.emptyText}>
-                  Cliquez sur le bouton + pour ajouter un document
-                </Text>
-              )}
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* Floating Action Button */}
+      {/* Floating Add Button */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('AddDocument', { petId: currentPet?.id })}
+        onPress={() => navigation.navigate('AddDocument')}
         activeOpacity={0.8}
       >
         <Ionicons name="add" size={32} color={colors.white} />
       </TouchableOpacity>
-    </ScrollView>
+
+      {/* Document Details Modal */}
+      <Modal
+        visible={showDetailsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDetailsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {selectedDoc && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Détails du document</Text>
+                  <TouchableOpacity onPress={() => setShowDetailsModal(false)}>
+                    <Ionicons name="close" size={28} color={colors.navy} />
+                  </TouchableOpacity>
+        </View>
+
+                <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={true}>
+                  <View style={[styles.modalIconContainer, { backgroundColor: `${getDocumentColor(selectedDoc.type || 'other')}15` }]}>
+                    <Ionicons
+                      name={getDocumentIcon(selectedDoc.type || 'other')}
+                      size={48}
+                      color={getDocumentColor(selectedDoc.type || 'other')}
+                    />
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>📄 Nom</Text>
+                    <Text style={styles.detailValue}>{selectedDoc.name || 'Sans nom'}</Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>🐾 Animal</Text>
+                    <Text style={styles.detailValue}>{getPetName(selectedDoc.petId)}</Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>📅 Date d'upload</Text>
+                    <Text style={styles.detailValue}>
+                      {formatDate(selectedDoc.uploadDate || selectedDoc.createdAt)}
+                    </Text>
+        </View>
+
+                  {selectedDoc.type && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>🏷️ Type</Text>
+                      <Text style={styles.detailValue}>{selectedDoc.type}</Text>
+                    </View>
+                  )}
+
+                  {selectedDoc.category && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>📂 Catégorie</Text>
+                      <Text style={styles.detailValue}>{selectedDoc.category}</Text>
+                    </View>
+                  )}
+
+                  {selectedDoc.notes && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>📝 Notes</Text>
+                      <Text style={styles.detailValue}>{selectedDoc.notes}</Text>
+                    </View>
+                  )}
+                </ScrollView>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.downloadButton]}
+                    onPress={() => handleDownloadDocument(selectedDoc)}
+                  >
+                    <Ionicons name="download" size={20} color={colors.white} />
+                    <Text style={styles.modalButtonText}>Télécharger</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.deleteButton]}
+                    onPress={() => handleDeleteDocument(selectedDoc)}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons name="trash" size={20} color={colors.white} />
+                        <Text style={styles.modalButtonText}>Supprimer</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+              )}
+            </View>
+        </View>
+      </Modal>
+      </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
-  },
-  backButton: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
+    backgroundColor: '#F8FAFB',
   },
   header: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  petInfo: {
-    alignItems: 'center',
-  },
-  petImagePlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.lightGray,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  petName: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.black,
-  },
-  locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    paddingTop: Platform.OS === 'ios' ? spacing.xxl : spacing.xl,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray,
   },
-  location: {
-    fontSize: typography.fontSize.sm,
-    color: colors.black,
-  },
-  content: {
-    backgroundColor: colors.lightBlue,
-    margin: spacing.lg,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    minHeight: 400,
-  },
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  title: {
+  headerTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
   },
-  searchBar: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  loadingText: {
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    gap: spacing.md,
+    backgroundColor: colors.white,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: colors.lightBlue,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: typography.fontSize.xxl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.teal,
+    marginBottom: spacing.xs,
+  },
+  statLabel: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl * 4,
+  },
+  documentCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.md,
-    height: 45,
-    marginBottom: spacing.lg,
-  },
-  searchIcon: {
-    marginRight: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: typography.fontSize.md,
-    color: colors.black,
-    paddingVertical: spacing.xs,
-  },
-  clearButton: {
-    padding: spacing.xs,
-  },
-  documentsContainer: {
-    gap: spacing.lg,
-  },
-  documentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: borderRadius.xl,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
     gap: spacing.md,
-    paddingVertical: spacing.md,
   },
-  documentInfo: {
+  documentIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  documentContent: {
     flex: 1,
   },
   documentName: {
     fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semiBold,
+    fontWeight: typography.fontWeight.bold,
     color: colors.navy,
+    marginBottom: spacing.xs,
+  },
+  documentPet: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    marginBottom: 2,
   },
   documentDate: {
     fontSize: typography.fontSize.xs,
     color: colors.gray,
-    marginTop: spacing.xs,
+  },
+  documentActions: {
+    flexDirection: 'column',
+    gap: spacing.xs,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyState: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing.xxl * 2,
   },
   emptyTitle: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
     marginTop: spacing.lg,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  emptyText: {
-    fontSize: typography.fontSize.md,
+  emptySubtitle: {
+    fontSize: typography.fontSize.sm,
     color: colors.gray,
     textAlign: 'center',
-  },
-  noDocumentsText: {
-    fontSize: typography.fontSize.md,
-    color: colors.gray,
-    textAlign: 'center',
-    marginTop: spacing.xl,
+    paddingHorizontal: spacing.xl,
   },
   fab: {
     position: 'absolute',
@@ -266,5 +574,80 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: borderRadius.xxl,
+    borderTopRightRadius: borderRadius.xxl,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+  },
+  modalBody: {
+    padding: spacing.xl,
+  },
+  modalIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: spacing.xl,
+  },
+  detailRow: {
+    marginBottom: spacing.lg,
+  },
+  detailLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.gray,
+    marginBottom: spacing.xs,
+  },
+  detailValue: {
+    fontSize: typography.fontSize.md,
+    color: colors.navy,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    padding: spacing.xl,
+    gap: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.lightGray,
+  },
+  modalButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.sm,
+  },
+  downloadButton: {
+    backgroundColor: colors.teal,
+  },
+  deleteButton: {
+    backgroundColor: '#FF6B6B',
+  },
+  modalButtonText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
 });
-

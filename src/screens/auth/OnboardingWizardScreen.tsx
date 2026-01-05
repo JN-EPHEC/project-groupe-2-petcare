@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { Button, Input, CustomPicker } from '../../components';
 import { CookieConsentModal } from '../../components/CookieConsentModal';
@@ -24,9 +25,13 @@ export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({ 
   const [petName, setPetName] = useState('');
   const [species, setSpecies] = useState('');
   const [breed, setBreed] = useState('');
+  const [customBreed, setCustomBreed] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
   const [gender, setGender] = useState('');
+  const [birthDate, setBirthDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [identification, setIdentification] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -42,7 +47,15 @@ export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({ 
   // Réinitialiser la race quand l'espèce change
   useEffect(() => {
     setBreed('');
+    setCustomBreed('');
   }, [species]);
+
+  // Réinitialiser customBreed quand on change de race
+  useEffect(() => {
+    if (breed !== 'Autre') {
+      setCustomBreed('');
+    }
+  }, [breed]);
 
   const pickImage = async () => {
     try {
@@ -53,17 +66,25 @@ export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({ 
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets && result.assets[0]) {
         setImageUri(result.assets[0].uri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image. Veuillez réessayer.');
+    }
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setBirthDate(selectedDate);
     }
   };
 
@@ -132,15 +153,31 @@ export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({ 
         }
       }
 
+      // Calculer l'âge à partir de la date de naissance
+      const calculateAge = (birthDateValue: Date): number => {
+        const today = new Date();
+        const age = today.getFullYear() - birthDateValue.getFullYear();
+        const monthDiff = today.getMonth() - birthDateValue.getMonth();
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDateValue.getDate())) {
+          return age - 1;
+        }
+        return age;
+      };
+
+      const calculatedAge = calculateAge(birthDate);
+
       const petData: any = {
         name: petName,
         type: petType,
-        breed: breed || 'Non précisée',
-        age: parseInt(age) || 0,
+        breed: breed === 'Autre' ? (customBreed || 'Non précisée') : (breed || 'Non précisée'),
+        age: calculatedAge,
         weight: parseFloat(weight) || 0,
         emoji,
         ownerId: user.id,
         gender: gender || 'Non précisé',
+        birthDate: birthDate.toISOString(),
+        identification: identification.trim() || null,
         avatarUrl,
       };
 
@@ -262,16 +299,93 @@ export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({ 
           disabled={!species}
         />
         
+        {breed === 'Autre' && (
+          <Input
+            label="Précisez la race *"
+            value={customBreed}
+            onChangeText={setCustomBreed}
+            placeholder="Ex: Labradoodle, Croisé..."
+          />
+        )}
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Date de naissance *</Text>
+          {Platform.OS === 'web' ? (
+            <View style={styles.dateInputContainer}>
+              <Ionicons name="calendar" size={20} color={colors.teal} style={{ marginRight: 8 }} />
+              <input
+                type="date"
+                value={birthDate.toISOString().split('T')[0]}
+                onChange={(e) => {
+                  const newDate = new Date(e.target.value);
+                  if (!isNaN(newDate.getTime())) {
+                    setBirthDate(newDate);
+                  }
+                }}
+                max={new Date().toISOString().split('T')[0]}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: colors.navy,
+                  outline: 'none',
+                  padding: '8px 0',
+                }}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles.dateInputContainer}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar" size={20} color={colors.teal} style={{ marginRight: 8 }} />
+              <Text style={styles.dateText}>
+                {birthDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <Text style={styles.helperText}>
+            Âge calculé: {(() => {
+              const today = new Date();
+              const age = today.getFullYear() - birthDate.getFullYear();
+              const monthDiff = today.getMonth() - birthDate.getMonth();
+              return (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) ? age - 1 : age;
+            })()} an(s)
+          </Text>
+        </View>
+        
+        {showDatePicker && Platform.OS !== 'web' && (
+          <DateTimePicker
+            value={birthDate}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
+
+        <Input
+          label="Numéro d'identification (puce/tatouage)"
+          value={identification}
+          onChangeText={setIdentification}
+          placeholder="Ex: 250269812345678 (15 chiffres) ou ABC123"
+          autoCapitalize="characters"
+        />
+        {identification.trim() && (
+          <Text style={styles.helperText}>
+            {/^[0-9]{15}$/.test(identification.trim()) ? (
+              '✓ Puce électronique valide'
+            ) : /^[A-Z0-9]{3,}$/.test(identification.trim().toUpperCase()) ? (
+              '✓ Tatouage valide'
+            ) : (
+              'ℹ️ Puce: 15 chiffres | Tatouage: lettres et chiffres'
+            )}
+          </Text>
+        )}
+        
         <View style={styles.rowInputs}>
-          <View style={{ flex: 1 }}>
-            <Input
-              label="Âge (années)"
-              value={age}
-              onChangeText={setAge}
-              placeholder="3"
-              keyboardType="numeric"
-            />
-          </View>
           <View style={{ flex: 1 }}>
             <Input
               label="Poids (kg)"
@@ -281,15 +395,16 @@ export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({ 
               keyboardType="numeric"
             />
           </View>
+          <View style={{ flex: 1 }}>
+            <CustomPicker
+              value={gender}
+              onValueChange={setGender}
+              options={GENDER_OPTIONS}
+              placeholder="Sexe"
+              icon="male-female"
+            />
+          </View>
         </View>
-        
-        <CustomPicker
-          value={gender}
-          onValueChange={setGender}
-          options={GENDER_OPTIONS}
-          placeholder="Sélectionnez le sexe"
-          icon="male-female"
-        />
       </View>
     </View>
   );
@@ -580,6 +695,32 @@ const styles = StyleSheet.create({
   rowInputs: {
     flexDirection: 'row',
     gap: spacing.md,
+  },
+  inputGroup: {
+    marginBottom: spacing.md,
+  },
+  inputLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    marginBottom: spacing.sm,
+  },
+  dateInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightBlue,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+  },
+  dateText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.navy,
+  },
+  helperText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray,
+    marginTop: spacing.xs,
   },
   selectVetButton: {
     backgroundColor: colors.lightBlue,

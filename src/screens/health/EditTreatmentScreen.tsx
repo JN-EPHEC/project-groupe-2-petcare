@@ -1,0 +1,210 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { colors, spacing, typography, borderRadius } from '../../theme';
+import { Input, CustomPicker } from '../../components';
+import { updateTreatment } from '../../services/firestoreService';
+
+interface EditTreatmentScreenProps {
+  navigation: any;
+  route: any;
+}
+
+const TREATMENT_TYPES = [
+  { label: 'Anti-puces', value: 'antipuce' },
+  { label: 'Antibiotique', value: 'antibiotique' },
+  { label: 'Vermifuge', value: 'vermifuge' },
+  { label: 'Autre', value: 'autre' },
+];
+
+export const EditTreatmentScreen: React.FC<EditTreatmentScreenProps> = ({
+  navigation,
+  route,
+}) => {
+  const { treatment, pet, onSave } = route.params;
+
+  const [type, setType] = useState<'antipuce' | 'antibiotique' | 'vermifuge' | 'autre'>(treatment.type);
+  const [name, setName] = useState(treatment.name);
+  const [startDate, setStartDate] = useState(new Date(treatment.startDate));
+  const [endDate, setEndDate] = useState(new Date(treatment.endDate));
+  const [frequency, setFrequency] = useState(treatment.frequency || '');
+  const [dosage, setDosage] = useState(treatment.dosage || '');
+  const [notes, setNotes] = useState(treatment.notes || '');
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+    setShowStartDatePicker(false);
+    if (selectedDate) setStartDate(selectedDate);
+  };
+
+  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+    setShowEndDatePicker(false);
+    if (selectedDate) setEndDate(selectedDate);
+  };
+
+  const validate = (): boolean => {
+    if (!name.trim()) {
+      (Platform.OS === 'web' ? window.alert : Alert.alert)('Veuillez entrer un nom de traitement');
+      return false;
+    }
+    if (endDate < startDate) {
+      (Platform.OS === 'web' ? window.alert : Alert.alert)('La date de fin doit être après la date de début');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+
+    try {
+      setIsSaving(true);
+      await updateTreatment(treatment.id, {
+        type,
+        name: name.trim(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        frequency: frequency.trim() || undefined,
+        dosage: dosage.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
+
+      setIsSuccess(true);
+      setIsSaving(false);
+      if (onSave) onSave();
+      setTimeout(() => navigation.goBack(), 1500);
+    } catch (error: any) {
+      setIsSaving(false);
+      (Platform.OS === 'web' ? window.alert : Alert.alert)(error.message || 'Erreur');
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={28} color={colors.navy} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Modifier le traitement</Text>
+        <View style={{ width: 28 }} />
+      </View>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Type de traitement</Text>
+          <CustomPicker
+            value={type}
+            onValueChange={(value) => setType(value as any)}
+            options={TREATMENT_TYPES}
+            icon="medical"
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Input label="Nom du traitement *" value={name} onChangeText={setName} />
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Date de début *</Text>
+            {Platform.OS === 'web' ? (
+              <View style={styles.dateInputContainer}>
+                <Ionicons name="calendar" size={20} color={colors.teal} style={{ marginRight: 8 }} />
+                <input
+                  type="date"
+                  value={startDate.toISOString().split('T')[0]}
+                  onChange={(e) => setStartDate(new Date(e.target.value))}
+                  style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '16px', fontWeight: '600', color: colors.navy, outline: 'none', padding: '8px 0' }}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.dateInputContainer} onPress={() => setShowStartDatePicker(true)}>
+                <Ionicons name="calendar" size={20} color={colors.teal} style={{ marginRight: 8 }} />
+                <Text style={styles.dateText}>{startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {showStartDatePicker && Platform.OS !== 'web' && <DateTimePicker value={startDate} mode="date" display="default" onChange={handleStartDateChange} />}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Date de fin *</Text>
+            {Platform.OS === 'web' ? (
+              <View style={styles.dateInputContainer}>
+                <Ionicons name="calendar" size={20} color={colors.teal} style={{ marginRight: 8 }} />
+                <input
+                  type="date"
+                  value={endDate.toISOString().split('T')[0]}
+                  onChange={(e) => setEndDate(new Date(e.target.value))}
+                  min={startDate.toISOString().split('T')[0]}
+                  style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '16px', fontWeight: '600', color: colors.navy, outline: 'none', padding: '8px 0' }}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.dateInputContainer} onPress={() => setShowEndDatePicker(true)}>
+                <Ionicons name="calendar" size={20} color={colors.teal} style={{ marginRight: 8 }} />
+                <Text style={styles.dateText}>{endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {showEndDatePicker && Platform.OS !== 'web' && <DateTimePicker value={endDate} mode="date" display="default" onChange={handleEndDateChange} minimumDate={startDate} />}
+
+          <Input label="Dosage" value={dosage} onChangeText={setDosage} placeholder="Ex: 1 comprimé (optionnel)" />
+          <Input label="Fréquence" value={frequency} onChangeText={setFrequency} placeholder="Ex: 2 fois par jour (optionnel)" />
+          <Input label="Notes" value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.saveButton, isSuccess && styles.saveButtonSuccess, isSaving && styles.saveButtonDisabled]}
+          onPress={handleSave}
+          disabled={isSaving || isSuccess}
+        >
+          {isSuccess ? (
+            <>
+              <Ionicons name="checkmark-circle" size={24} color={colors.white} />
+              <Text style={styles.saveButtonText}>Modifié !</Text>
+            </>
+          ) : isSaving ? (
+            <>
+              <ActivityIndicator size="small" color={colors.white} />
+              <Text style={styles.saveButtonText}>Enregistrement...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="save" size={24} color={colors.white} />
+              <Text style={styles.saveButtonText}>Enregistrer les modifications</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8FAFB' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingTop: Platform.OS === 'ios' ? spacing.xxl : spacing.xl, paddingBottom: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.lightGray },
+  headerTitle: { fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color: colors.navy },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: spacing.xl, paddingBottom: spacing.xxl * 2 },
+  section: { marginBottom: spacing.xl },
+  sectionTitle: { fontSize: typography.fontSize.md, fontWeight: typography.fontWeight.bold, color: colors.navy, marginBottom: spacing.md, textTransform: 'uppercase', letterSpacing: 0.5 },
+  inputGroup: { marginBottom: spacing.md },
+  inputLabel: { fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.bold, color: colors.navy, marginBottom: spacing.sm },
+  dateInputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.lightBlue, borderRadius: borderRadius.lg, padding: spacing.md },
+  dateText: { fontSize: typography.fontSize.md, fontWeight: typography.fontWeight.semiBold, color: colors.navy },
+  saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.teal, borderRadius: borderRadius.xl, padding: spacing.md, gap: spacing.sm, marginTop: spacing.lg },
+  saveButtonDisabled: { backgroundColor: colors.gray },
+  saveButtonSuccess: { backgroundColor: '#4CAF50' },
+  saveButtonText: { fontSize: typography.fontSize.lg, fontWeight: typography.fontWeight.bold, color: colors.white },
+});
