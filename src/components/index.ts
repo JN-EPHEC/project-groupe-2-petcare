@@ -12,3 +12,6 @@ export { AddressAutocomplete } from './AddressAutocomplete';
 export { CookieConsentModal } from './CookieConsentModal';
 export { NotificationConsentModal } from './NotificationConsentModal';
 export { NotificationBell } from './NotificationBell';
+export { PetSelector } from './PetSelector';
+export { OfflineIndicator } from './OfflineIndicator';
+export { InAppAlert } from './InAppAlert';

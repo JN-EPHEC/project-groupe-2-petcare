@@ -5,6 +5,7 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
+  setDoc,
   deleteDoc, 
   query, 
   where, 
@@ -98,8 +99,37 @@ export interface Appointment {
   date: string;
   time: string;
   type: string;
-  status: 'upcoming' | 'completed' | 'cancelled';
+  reason?: string;
+  status: 'upcoming' | 'completed' | 'cancelled' | 'pending';
   notes?: string;
+}
+
+export interface PetAssignmentRequest {
+  id: string;
+  petId: string;
+  petName: string;
+  petType: string; // dog, cat, etc.
+  petBreed: string;
+  petAvatar?: string;
+  ownerId: string;
+  ownerName: string;
+  vetId: string;
+  vetName: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: any;
+  processedAt?: any;
+  message?: string; // Message du propriétaire (optionnel)
+}
+
+export interface Notification {
+  id?: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt?: any;
+  data?: any;
 }
 
 // ==================== PETS ====================
@@ -301,10 +331,27 @@ export const getRemindersByOwnerId = async (ownerId: string): Promise<Reminder[]
 
 export const addReminder = async (reminderData: Omit<Reminder, 'id'>): Promise<string> => {
   try {
-    const docRef = await addDoc(collection(db, 'reminders'), {
-      ...reminderData,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedData: any = {
+      petId: reminderData.petId,
+      petName: reminderData.petName,
+      ownerId: reminderData.ownerId,
+      title: reminderData.title,
+      type: reminderData.type,
+      date: reminderData.date,
+      completed: reminderData.completed,
       createdAt: serverTimestamp(),
-    });
+    };
+
+    // Ajouter les champs optionnels seulement s'ils sont définis
+    if (reminderData.time) {
+      cleanedData.time = reminderData.time;
+    }
+    if (reminderData.notes) {
+      cleanedData.notes = reminderData.notes;
+    }
+
+    const docRef = await addDoc(collection(db, 'reminders'), cleanedData);
     return docRef.id;
   } catch (error) {
     console.error('Error adding reminder:', error);
@@ -314,10 +361,19 @@ export const addReminder = async (reminderData: Omit<Reminder, 'id'>): Promise<s
 
 export const updateReminder = async (reminderId: string, data: Partial<Reminder>): Promise<void> => {
   try {
-    await updateDoc(doc(db, 'reminders', reminderId), {
-      ...data,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedData: any = {
       updatedAt: serverTimestamp(),
+    };
+
+    // Ajouter uniquement les champs définis
+    Object.keys(data).forEach(key => {
+      if (data[key as keyof Reminder] !== undefined) {
+        cleanedData[key] = data[key as keyof Reminder];
+      }
     });
+
+    await updateDoc(doc(db, 'reminders', reminderId), cleanedData);
   } catch (error) {
     console.error('Error updating reminder:', error);
     throw error;
@@ -387,10 +443,24 @@ export const getDocumentsByPetId = async (petId: string): Promise<Document[]> =>
 
 export const addDocument = async (documentData: Omit<Document, 'id'>): Promise<string> => {
   try {
-    const docRef = await addDoc(collection(db, 'documents'), {
-      ...documentData,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedData: any = {
+      petId: documentData.petId,
+      petName: documentData.petName,
+      ownerId: documentData.ownerId,
+      name: documentData.name,
+      type: documentData.type,
+      url: documentData.url,
+      uploadDate: documentData.uploadDate,
       createdAt: serverTimestamp(),
-    });
+    };
+
+    // Ajouter les champs optionnels seulement s'ils sont définis
+    if (documentData.size !== undefined) {
+      cleanedData.size = documentData.size;
+    }
+
+    const docRef = await addDoc(collection(db, 'documents'), cleanedData);
     return docRef.id;
   } catch (error) {
     console.error('Error adding document:', error);
@@ -400,10 +470,19 @@ export const addDocument = async (documentData: Omit<Document, 'id'>): Promise<s
 
 export const updateDocument = async (documentId: string, data: Partial<Document>): Promise<void> => {
   try {
-    await updateDoc(doc(db, 'documents', documentId), {
-      ...data,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedData: any = {
       updatedAt: serverTimestamp(),
+    };
+
+    // Ajouter uniquement les champs définis
+    Object.keys(data).forEach(key => {
+      if (data[key as keyof Document] !== undefined) {
+        cleanedData[key] = data[key as keyof Document];
+      }
     });
+
+    await updateDoc(doc(db, 'documents', documentId), cleanedData);
   } catch (error) {
     console.error('Error updating document:', error);
     throw error;
@@ -479,10 +558,30 @@ export const getAppointmentsByVetId = async (vetId: string): Promise<Appointment
 
 export const addAppointment = async (appointmentData: Omit<Appointment, 'id'>): Promise<string> => {
   try {
-    const docRef = await addDoc(collection(db, 'appointments'), {
-      ...appointmentData,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedData: any = {
+      petId: appointmentData.petId,
+      petName: appointmentData.petName,
+      ownerId: appointmentData.ownerId,
+      ownerName: appointmentData.ownerName,
+      vetId: appointmentData.vetId,
+      vetName: appointmentData.vetName,
+      date: appointmentData.date,
+      time: appointmentData.time,
+      type: appointmentData.type,
+      status: appointmentData.status,
       createdAt: serverTimestamp(),
-    });
+    };
+
+    // Ajouter les champs optionnels seulement s'ils sont définis
+    if (appointmentData.reason) {
+      cleanedData.reason = appointmentData.reason;
+    }
+    if (appointmentData.notes) {
+      cleanedData.notes = appointmentData.notes;
+    }
+
+    const docRef = await addDoc(collection(db, 'appointments'), cleanedData);
     return docRef.id;
   } catch (error) {
     console.error('Error adding appointment:', error);
@@ -492,10 +591,19 @@ export const addAppointment = async (appointmentData: Omit<Appointment, 'id'>): 
 
 export const updateAppointment = async (appointmentId: string, data: Partial<Appointment>): Promise<void> => {
   try {
-    await updateDoc(doc(db, 'appointments', appointmentId), {
-      ...data,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedData: any = {
       updatedAt: serverTimestamp(),
+    };
+
+    // Ajouter uniquement les champs définis
+    Object.keys(data).forEach(key => {
+      if (data[key as keyof Appointment] !== undefined) {
+        cleanedData[key] = data[key as keyof Appointment];
+      }
     });
+
+    await updateDoc(doc(db, 'appointments', appointmentId), cleanedData);
   } catch (error) {
     console.error('Error updating appointment:', error);
     throw error;
@@ -1048,7 +1156,7 @@ export const getUserById = async (userId: string): Promise<any> => {
 
 export const getPublishedArticles = async (): Promise<any[]> => {
   try {
-    const articlesRef = collection(db, 'blogArticles');
+    const articlesRef = collection(db, 'blog_articles');
     const q = query(
       articlesRef, 
       where('status', '==', 'published'),
@@ -1068,7 +1176,7 @@ export const getPublishedArticles = async (): Promise<any[]> => {
 
 export const getArticlesByCategory = async (category: string): Promise<any[]> => {
   try {
-    const articlesRef = collection(db, 'blogArticles');
+    const articlesRef = collection(db, 'blog_articles');
     const q = query(
       articlesRef,
       where('status', '==', 'published'),
@@ -1089,7 +1197,7 @@ export const getArticlesByCategory = async (category: string): Promise<any[]> =>
 
 export const getArticleById = async (id: string): Promise<any> => {
   try {
-    const articleRef = doc(db, 'blogArticles', id);
+    const articleRef = doc(db, 'blog_articles', id);
     const articleDoc = await getDoc(articleRef);
     
     if (articleDoc.exists()) {
@@ -1108,7 +1216,7 @@ export const getArticleById = async (id: string): Promise<any> => {
 
 export const searchArticles = async (searchQuery: string): Promise<any[]> => {
   try {
-    const articlesRef = collection(db, 'blogArticles');
+    const articlesRef = collection(db, 'blog_articles');
     const q = query(
       articlesRef,
       where('status', '==', 'published')
@@ -1134,7 +1242,7 @@ export const searchArticles = async (searchQuery: string): Promise<any[]> => {
 
 export const createArticle = async (article: any): Promise<string> => {
   try {
-    const articlesRef = collection(db, 'blogArticles');
+    const articlesRef = collection(db, 'blog_articles');
     const docRef = await addDoc(articlesRef, {
       ...article,
       createdAt: new Date().toISOString(),
@@ -1152,7 +1260,7 @@ export const createArticle = async (article: any): Promise<string> => {
 
 export const updateArticle = async (id: string, updates: any): Promise<void> => {
   try {
-    const articleRef = doc(db, 'blogArticles', id);
+    const articleRef = doc(db, 'blog_articles', id);
     await updateDoc(articleRef, {
       ...updates,
       updatedAt: new Date().toISOString()
@@ -1166,7 +1274,7 @@ export const updateArticle = async (id: string, updates: any): Promise<void> => 
 
 export const deleteArticle = async (id: string): Promise<void> => {
   try {
-    const articleRef = doc(db, 'blogArticles', id);
+    const articleRef = doc(db, 'blog_articles', id);
     await deleteDoc(articleRef);
     console.log('Article deleted:', id);
   } catch (error) {
@@ -1177,7 +1285,7 @@ export const deleteArticle = async (id: string): Promise<void> => {
 
 export const incrementArticleViews = async (id: string): Promise<void> => {
   try {
-    const articleRef = doc(db, 'blogArticles', id);
+    const articleRef = doc(db, 'blog_articles', id);
     const articleDoc = await getDoc(articleRef);
     
     if (articleDoc.exists()) {
@@ -1194,7 +1302,7 @@ export const incrementArticleViews = async (id: string): Promise<void> => {
 
 export const getAllArticles = async (): Promise<any[]> => {
   try {
-    const articlesRef = collection(db, 'blogArticles');
+    const articlesRef = collection(db, 'blog_articles');
     const q = query(articlesRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     
@@ -1345,6 +1453,19 @@ export const revokeShareLink = async (shareId: string): Promise<void> => {
   }
 };
 
+export const activateShareLink = async (shareId: string): Promise<void> => {
+  try {
+    const shareRef = doc(db, 'sharedPets', shareId);
+    await updateDoc(shareRef, {
+      isActive: true
+    });
+    console.log('Share link activated:', shareId);
+  } catch (error) {
+    console.error('Error activating share link:', error);
+    throw error;
+  }
+};
+
 export const getActiveShares = async (petId: string, ownerId?: string): Promise<any[]> => {
   try {
     const sharedPetsRef = collection(db, 'sharedPets');
@@ -1365,15 +1486,13 @@ export const getActiveShares = async (petId: string, ownerId?: string): Promise<
     const snapshot = await getDocs(q);
     
     // Filtrage et tri côté client (plus simple, pas d'index requis)
+    // Retourner TOUS les liens (actifs et inactifs) pour que le propriétaire puisse les gérer
     const shares = snapshot.docs
       .map(doc => ({
         id: doc.id,
         ...doc.data()
       }))
-      .filter(share => 
-        share.petId === petId && 
-        share.isActive === true
-      )
+      .filter(share => share.petId === petId)
       .sort((a, b) => {
         // Tri par date décroissante
         const dateA = new Date(a.createdAt).getTime();
@@ -1654,13 +1773,29 @@ export const addVaccination = async (vaccination: Omit<Vaccination, 'id' | 'crea
       throw new Error('Le type de vaccin ne peut pas dépasser 50 caractères');
     }
 
-    const vaccinationData = {
-      ...vaccination,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedVaccination: any = {
+      petId: vaccination.petId,
+      petName: vaccination.petName,
+      ownerId: vaccination.ownerId,
+      type: vaccination.type,
+      date: vaccination.date,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(collection(db, 'vaccinations'), vaccinationData);
+    // Ajouter les champs optionnels seulement s'ils sont définis
+    if (vaccination.nextDueDate) {
+      cleanedVaccination.nextDueDate = vaccination.nextDueDate;
+    }
+    if (vaccination.vet) {
+      cleanedVaccination.vet = vaccination.vet;
+    }
+    if (vaccination.notes) {
+      cleanedVaccination.notes = vaccination.notes;
+    }
+
+    const docRef = await addDoc(collection(db, 'vaccinations'), cleanedVaccination);
     console.log('✅ Vaccin ajouté:', docRef.id);
     return docRef.id;
   } catch (error) {
@@ -1705,11 +1840,20 @@ export const updateVaccination = async (vaccinationId: string, updates: Partial<
       throw new Error('Le type de vaccin ne peut pas dépasser 50 caractères');
     }
 
-    const vaccinationRef = doc(db, 'vaccinations', vaccinationId);
-    await updateDoc(vaccinationRef, {
-      ...updates,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedUpdates: any = {
       updatedAt: new Date().toISOString(),
+    };
+
+    // Ajouter uniquement les champs définis
+    Object.keys(updates).forEach(key => {
+      if (updates[key as keyof Vaccination] !== undefined) {
+        cleanedUpdates[key] = updates[key as keyof Vaccination];
+      }
     });
+
+    const vaccinationRef = doc(db, 'vaccinations', vaccinationId);
+    await updateDoc(vaccinationRef, cleanedUpdates);
     console.log('✅ Vaccin modifié:', vaccinationId);
   } catch (error) {
     console.error('❌ Erreur modification vaccin:', error);
@@ -1727,6 +1871,46 @@ export const deleteVaccination = async (vaccinationId: string): Promise<void> =>
   } catch (error) {
     console.error('❌ Erreur suppression vaccin:', error);
     throw error;
+  }
+};
+
+/**
+ * Obtenir tous les vaccins d'un propriétaire (tous ses animaux)
+ */
+export const getVaccinationsByOwnerId = async (ownerId: string): Promise<Vaccination[]> => {
+  try {
+    console.log('🔍 [getVaccinationsByOwnerId] Début - ownerId:', ownerId);
+    
+    // Requête sans orderBy pour éviter l'erreur d'index
+    const q = query(
+      collection(db, 'vaccinations'),
+      where('ownerId', '==', ownerId)
+    );
+    
+    console.log('📡 [getVaccinationsByOwnerId] Envoi de la requête Firestore...');
+    const snapshot = await getDocs(q);
+    
+    console.log('📊 [getVaccinationsByOwnerId] Nombre de vaccins trouvés:', snapshot.docs.length);
+    
+    const vaccinations = snapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log('💉 [getVaccinationsByOwnerId] Vaccin:', {
+        id: doc.id,
+        type: data.type,
+        petName: data.petName,
+        date: data.date,
+      });
+      return { id: doc.id, ...data } as Vaccination;
+    });
+    
+    // Tri côté client au lieu de Firestore
+    vaccinations.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    console.log('✅ [getVaccinationsByOwnerId] Retour de', vaccinations.length, 'vaccins (triés côté client)');
+    return vaccinations;
+  } catch (error) {
+    console.error('❌ [getVaccinationsByOwnerId] Erreur:', error);
+    return [];
   }
 };
 
@@ -1749,13 +1933,34 @@ export const addTreatment = async (treatment: Omit<Treatment, 'id' | 'createdAt'
       throw new Error('La date de fin doit être après la date de début');
     }
 
-    const treatmentData = {
-      ...treatment,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedTreatment: any = {
+      petId: treatment.petId,
+      petName: treatment.petName,
+      ownerId: treatment.ownerId,
+      type: treatment.type,
+      name: treatment.name,
+      startDate: treatment.startDate,
+      endDate: treatment.endDate,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(collection(db, 'treatments'), treatmentData);
+    // Ajouter les champs optionnels seulement s'ils sont définis
+    if (treatment.frequency) {
+      cleanedTreatment.frequency = treatment.frequency;
+    }
+    if (treatment.dosage) {
+      cleanedTreatment.dosage = treatment.dosage;
+    }
+    if (treatment.notes) {
+      cleanedTreatment.notes = treatment.notes;
+    }
+    if ((treatment as any).vet) {
+      cleanedTreatment.vet = (treatment as any).vet;
+    }
+
+    const docRef = await addDoc(collection(db, 'treatments'), cleanedTreatment);
     console.log('✅ Traitement ajouté:', docRef.id);
     return docRef.id;
   } catch (error) {
@@ -1797,11 +2002,20 @@ export const updateTreatment = async (treatmentId: string, updates: Partial<Trea
       }
     }
 
-    const treatmentRef = doc(db, 'treatments', treatmentId);
-    await updateDoc(treatmentRef, {
-      ...updates,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedUpdates: any = {
       updatedAt: new Date().toISOString(),
+    };
+
+    // Ajouter uniquement les champs définis
+    Object.keys(updates).forEach(key => {
+      if (updates[key as keyof Treatment] !== undefined) {
+        cleanedUpdates[key] = updates[key as keyof Treatment];
+      }
     });
+
+    const treatmentRef = doc(db, 'treatments', treatmentId);
+    await updateDoc(treatmentRef, cleanedUpdates);
     console.log('✅ Traitement modifié:', treatmentId);
   } catch (error) {
     console.error('❌ Erreur modification traitement:', error);
@@ -1819,6 +2033,47 @@ export const deleteTreatment = async (treatmentId: string): Promise<void> => {
   } catch (error) {
     console.error('❌ Erreur suppression traitement:', error);
     throw error;
+  }
+};
+
+/**
+ * Obtenir tous les traitements d'un propriétaire (tous ses animaux)
+ */
+export const getTreatmentsByOwnerId = async (ownerId: string): Promise<Treatment[]> => {
+  try {
+    console.log('🔍 [getTreatmentsByOwnerId] Début - ownerId:', ownerId);
+    
+    // Requête sans orderBy pour éviter l'erreur d'index
+    const q = query(
+      collection(db, 'treatments'),
+      where('ownerId', '==', ownerId)
+    );
+    
+    console.log('📡 [getTreatmentsByOwnerId] Envoi de la requête Firestore...');
+    const snapshot = await getDocs(q);
+    
+    console.log('📊 [getTreatmentsByOwnerId] Nombre de traitements trouvés:', snapshot.docs.length);
+    
+    const treatments = snapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log('💊 [getTreatmentsByOwnerId] Traitement:', {
+        id: doc.id,
+        type: data.type,
+        name: data.name,
+        petName: data.petName,
+        startDate: data.startDate,
+      });
+      return { id: doc.id, ...data } as Treatment;
+    });
+    
+    // Tri côté client au lieu de Firestore
+    treatments.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    
+    console.log('✅ [getTreatmentsByOwnerId] Retour de', treatments.length, 'traitements (triés côté client)');
+    return treatments;
+  } catch (error) {
+    console.error('❌ [getTreatmentsByOwnerId] Erreur:', error);
+    return [];
   }
 };
 
@@ -1840,13 +2095,28 @@ export const addMedicalHistory = async (history: Omit<MedicalHistory, 'id' | 'cr
       throw new Error('La description ne peut pas dépasser 200 caractères');
     }
 
-    const historyData = {
-      ...history,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedHistory: any = {
+      petId: history.petId,
+      petName: history.petName,
+      ownerId: history.ownerId,
+      type: history.type,
+      title: history.title,
+      description: history.description,
+      date: history.date,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(collection(db, 'medicalHistory'), historyData);
+    // Ajouter les champs optionnels seulement s'ils sont définis
+    if (history.documents && history.documents.length > 0) {
+      cleanedHistory.documents = history.documents;
+    }
+    if ((history as any).vet) {
+      cleanedHistory.vet = (history as any).vet;
+    }
+
+    const docRef = await addDoc(collection(db, 'medicalHistory'), cleanedHistory);
     console.log('✅ Antécédent médical ajouté:', docRef.id);
     return docRef.id;
   } catch (error) {
@@ -1891,11 +2161,20 @@ export const updateMedicalHistory = async (historyId: string, updates: Partial<M
       throw new Error('La description ne peut pas dépasser 200 caractères');
     }
 
-    const historyRef = doc(db, 'medicalHistory', historyId);
-    await updateDoc(historyRef, {
-      ...updates,
+    // Nettoyer les champs undefined (Firestore ne les accepte pas)
+    const cleanedUpdates: any = {
       updatedAt: new Date().toISOString(),
+    };
+
+    // Ajouter uniquement les champs définis
+    Object.keys(updates).forEach(key => {
+      if (updates[key as keyof MedicalHistory] !== undefined) {
+        cleanedUpdates[key] = updates[key as keyof MedicalHistory];
+      }
     });
+
+    const historyRef = doc(db, 'medicalHistory', historyId);
+    await updateDoc(historyRef, cleanedUpdates);
     console.log('✅ Antécédent médical modifié:', historyId);
   } catch (error) {
     console.error('❌ Erreur modification antécédent:', error);
@@ -1912,6 +2191,491 @@ export const deleteMedicalHistory = async (historyId: string): Promise<void> => 
     console.log('✅ Antécédent médical supprimé:', historyId);
   } catch (error) {
     console.error('❌ Erreur suppression antécédent:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtenir tous les antécédents médicaux d'un propriétaire (tous ses animaux)
+ */
+export const getMedicalHistoryByOwnerId = async (ownerId: string): Promise<MedicalHistory[]> => {
+  try {
+    console.log('🔍 [getMedicalHistoryByOwnerId] Début - ownerId:', ownerId);
+    
+    // Requête sans orderBy pour éviter l'erreur d'index
+    const q = query(
+      collection(db, 'medicalHistory'),
+      where('ownerId', '==', ownerId)
+    );
+    
+    console.log('📡 [getMedicalHistoryByOwnerId] Envoi de la requête Firestore...');
+    const snapshot = await getDocs(q);
+    
+    console.log('📊 [getMedicalHistoryByOwnerId] Nombre d\'antécédents trouvés:', snapshot.docs.length);
+    
+    const histories = snapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log('📋 [getMedicalHistoryByOwnerId] Antécédent:', {
+        id: doc.id,
+        type: data.type,
+        title: data.title,
+        petName: data.petName,
+        date: data.date,
+      });
+      return { id: doc.id, ...data } as MedicalHistory;
+    });
+    
+    // Tri côté client au lieu de Firestore
+    histories.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    console.log('✅ [getMedicalHistoryByOwnerId] Retour de', histories.length, 'antécédents (triés côté client)');
+    return histories;
+  } catch (error) {
+    console.error('❌ [getMedicalHistoryByOwnerId] Erreur:', error);
+    return [];
+  }
+};
+
+/**
+ * MIGRATION: Ajouter l'ownerId aux vaccins/traitements/antécédents existants
+ * Cette fonction corrige les anciennes données qui n'ont pas d'ownerId
+ */
+export const migrateHealthRecordsOwnerIds = async (userId: string): Promise<void> => {
+  try {
+    console.log('🔄 [MIGRATION] Début de la migration pour userId:', userId);
+    
+    // 1. Récupérer tous les pets du propriétaire
+    const pets = await getPetsByOwnerId(userId);
+    console.log('🐾 [MIGRATION] Animaux trouvés:', pets.length);
+    
+    if (pets.length === 0) {
+      console.log('⚠️ [MIGRATION] Aucun animal trouvé, arrêt de la migration');
+      return;
+    }
+    
+    let totalUpdated = 0;
+    
+    // 2. Pour chaque pet, mettre à jour ses vaccinations
+    for (const pet of pets) {
+      console.log(`📋 [MIGRATION] Traitement de l'animal: ${pet.name} (${pet.id})`);
+      
+      // Vaccinations
+      const vaccinationsQuery = query(
+        collection(db, 'vaccinations'),
+        where('petId', '==', pet.id)
+      );
+      const vaccinationsSnapshot = await getDocs(vaccinationsQuery);
+      
+      for (const vaccDoc of vaccinationsSnapshot.docs) {
+        const data = vaccDoc.data();
+        if (!data.ownerId) {
+          await updateDoc(doc(db, 'vaccinations', vaccDoc.id), {
+            ownerId: userId,
+          });
+          console.log(`✅ [MIGRATION] Vaccin mis à jour: ${vaccDoc.id}`);
+          totalUpdated++;
+        }
+      }
+      
+      // Traitements
+      const treatmentsQuery = query(
+        collection(db, 'treatments'),
+        where('petId', '==', pet.id)
+      );
+      const treatmentsSnapshot = await getDocs(treatmentsQuery);
+      
+      for (const treatDoc of treatmentsSnapshot.docs) {
+        const data = treatDoc.data();
+        if (!data.ownerId) {
+          await updateDoc(doc(db, 'treatments', treatDoc.id), {
+            ownerId: userId,
+          });
+          console.log(`✅ [MIGRATION] Traitement mis à jour: ${treatDoc.id}`);
+          totalUpdated++;
+        }
+      }
+      
+      // Antécédents médicaux
+      const historyQuery = query(
+        collection(db, 'medicalHistory'),
+        where('petId', '==', pet.id)
+      );
+      const historySnapshot = await getDocs(historyQuery);
+      
+      for (const histDoc of historySnapshot.docs) {
+        const data = histDoc.data();
+        if (!data.ownerId) {
+          await updateDoc(doc(db, 'medicalHistory', histDoc.id), {
+            ownerId: userId,
+          });
+          console.log(`✅ [MIGRATION] Antécédent mis à jour: ${histDoc.id}`);
+          totalUpdated++;
+        }
+      }
+    }
+    
+    console.log(`🎉 [MIGRATION] Migration terminée ! ${totalUpdated} documents mis à jour`);
+  } catch (error) {
+    console.error('❌ [MIGRATION] Erreur:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
+// VET SCHEDULE - Gestion des horaires du vétérinaire
+// ============================================================================
+
+export interface DaySchedule {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+export interface VetSchedule {
+  vetId: string;
+  monday: DaySchedule;
+  tuesday: DaySchedule;
+  wednesday: DaySchedule;
+  thursday: DaySchedule;
+  friday: DaySchedule;
+  saturday: DaySchedule;
+  sunday: DaySchedule;
+  onCallDates?: string[]; // Dates d'astreinte au format YYYY-MM-DD
+  acceptNewPatients?: boolean;
+  consultationRate?: string; // Prix de consultation
+  appointmentDuration?: number; // en minutes
+  updatedAt?: any;
+}
+
+/**
+ * Récupérer les horaires d'un vétérinaire
+ */
+export const getVetSchedule = async (vetId: string): Promise<VetSchedule | null> => {
+  try {
+    console.log('📅 [getVetSchedule] Récupération horaires pour vétérinaire:', vetId);
+    
+    const scheduleDoc = await getDoc(doc(db, 'vetSchedules', vetId));
+    
+    if (scheduleDoc.exists()) {
+      const data = scheduleDoc.data() as VetSchedule;
+      console.log('✅ [getVetSchedule] Horaires trouvés');
+      return { ...data, vetId };
+    } else {
+      console.log('⚠️ [getVetSchedule] Pas d\'horaires définis, retour horaires par défaut');
+      // Retourner des horaires par défaut
+      return {
+        vetId,
+        monday: { enabled: true, start: '09:00', end: '18:00' },
+        tuesday: { enabled: true, start: '09:00', end: '18:00' },
+        wednesday: { enabled: true, start: '09:00', end: '18:00' },
+        thursday: { enabled: true, start: '09:00', end: '18:00' },
+        friday: { enabled: true, start: '09:00', end: '18:00' },
+        saturday: { enabled: true, start: '09:00', end: '12:00' },
+        sunday: { enabled: false, start: '09:00', end: '18:00' },
+        onCallDates: [],
+        acceptNewPatients: true,
+        appointmentDuration: 30,
+      };
+    }
+  } catch (error) {
+    console.error('❌ [getVetSchedule] Erreur:', error);
+    return null;
+  }
+};
+
+/**
+ * Mettre à jour les horaires d'un vétérinaire
+ */
+export const updateVetSchedule = async (
+  vetId: string,
+  schedule: Omit<VetSchedule, 'vetId' | 'updatedAt'>
+): Promise<void> => {
+  try {
+    console.log('💾 [updateVetSchedule] Mise à jour horaires pour:', vetId);
+    
+    const scheduleData = {
+      ...schedule,
+      vetId,
+      updatedAt: serverTimestamp(),
+    };
+    
+    const scheduleRef = doc(db, 'vetSchedules', vetId);
+    
+    // Utiliser setDoc avec merge: true pour créer ou mettre à jour
+    await setDoc(scheduleRef, scheduleData, { merge: true });
+    console.log('✅ [updateVetSchedule] Horaires sauvegardés avec succès');
+  } catch (error) {
+    console.error('❌ [updateVetSchedule] Erreur:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
+// PET ASSIGNMENT REQUESTS - Demandes d'assignation d'animaux aux vétérinaires
+// ============================================================================
+
+/**
+ * Créer une demande d'assignation d'un animal à un vétérinaire
+ */
+export const createPetAssignmentRequest = async (
+  requestData: Omit<PetAssignmentRequest, 'id' | 'status' | 'createdAt'>
+): Promise<string> => {
+  try {
+    console.log('📝 [createPetAssignmentRequest] Création demande d\'assignation:', requestData.petName, '→', requestData.vetName);
+    
+    const request = {
+      ...requestData,
+      status: 'pending' as const,
+      createdAt: serverTimestamp(),
+    };
+    
+    const docRef = await addDoc(collection(db, 'petAssignmentRequests'), request);
+    console.log('✅ [createPetAssignmentRequest] Demande créée avec ID:', docRef.id);
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ [createPetAssignmentRequest] Erreur:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer les demandes d'assignation pour un vétérinaire
+ */
+export const getAssignmentRequestsByVetId = async (vetId: string): Promise<PetAssignmentRequest[]> => {
+  try {
+    console.log('📋 [getAssignmentRequestsByVetId] Récupération demandes pour vétérinaire:', vetId);
+    
+    const q = query(
+      collection(db, 'petAssignmentRequests'),
+      where('vetId', '==', vetId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const requests = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as PetAssignmentRequest[];
+    
+    console.log('✅ [getAssignmentRequestsByVetId] Demandes trouvées:', requests.length);
+    return requests;
+  } catch (error) {
+    console.error('❌ [getAssignmentRequestsByVetId] Erreur:', error);
+    return [];
+  }
+};
+
+/**
+ * Récupérer les demandes d'assignation en attente pour un vétérinaire
+ */
+export const getPendingAssignmentRequestsByVetId = async (vetId: string): Promise<PetAssignmentRequest[]> => {
+  try {
+    const q = query(
+      collection(db, 'petAssignmentRequests'),
+      where('vetId', '==', vetId),
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as PetAssignmentRequest[];
+  } catch (error) {
+    console.error('❌ [getPendingAssignmentRequestsByVetId] Erreur:', error);
+    return [];
+  }
+};
+
+/**
+ * Récupérer les demandes d'assignation pour un propriétaire
+ */
+export const getAssignmentRequestsByOwnerId = async (ownerId: string): Promise<PetAssignmentRequest[]> => {
+  try {
+    console.log('📋 [getAssignmentRequestsByOwnerId] Récupération demandes pour propriétaire:', ownerId);
+    
+    const q = query(
+      collection(db, 'petAssignmentRequests'),
+      where('ownerId', '==', ownerId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const requests = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as PetAssignmentRequest[];
+    
+    console.log('✅ [getAssignmentRequestsByOwnerId] Demandes trouvées:', requests.length);
+    return requests;
+  } catch (error) {
+    console.error('❌ [getAssignmentRequestsByOwnerId] Erreur:', error);
+    return [];
+  }
+};
+
+/**
+ * Accepter une demande d'assignation
+ */
+export const acceptAssignmentRequest = async (requestId: string): Promise<void> => {
+  try {
+    console.log('✅ [acceptAssignmentRequest] Acceptation de la demande:', requestId);
+    
+    // 1. Récupérer la demande
+    const requestDoc = await getDoc(doc(db, 'petAssignmentRequests', requestId));
+    if (!requestDoc.exists()) {
+      throw new Error('Demande introuvable');
+    }
+    
+    const request = requestDoc.data() as PetAssignmentRequest;
+    
+    // 2. Mettre à jour le pet avec le vétérinaire
+    await updateDoc(doc(db, 'pets', request.petId), {
+      vetId: request.vetId,
+      vetName: request.vetName,
+      updatedAt: serverTimestamp(),
+    });
+    
+    // 3. Mettre à jour le statut de la demande
+    await updateDoc(doc(db, 'petAssignmentRequests', requestId), {
+      status: 'accepted',
+      processedAt: serverTimestamp(),
+    });
+    
+    console.log('✅ [acceptAssignmentRequest] Demande acceptée avec succès');
+  } catch (error) {
+    console.error('❌ [acceptAssignmentRequest] Erreur:', error);
+    throw error;
+  }
+};
+
+/**
+ * Refuser une demande d'assignation
+ */
+export const rejectAssignmentRequest = async (requestId: string): Promise<void> => {
+  try {
+    console.log('❌ [rejectAssignmentRequest] Refus de la demande:', requestId);
+    
+    await updateDoc(doc(db, 'petAssignmentRequests', requestId), {
+      status: 'rejected',
+      processedAt: serverTimestamp(),
+    });
+    
+    console.log('✅ [rejectAssignmentRequest] Demande refusée avec succès');
+  } catch (error) {
+    console.error('❌ [rejectAssignmentRequest] Erreur:', error);
+    throw error;
+  }
+};
+
+/**
+ * Annuler une demande d'assignation (par le propriétaire)
+ */
+export const cancelAssignmentRequest = async (requestId: string): Promise<void> => {
+  try {
+    console.log('🚫 [cancelAssignmentRequest] Annulation de la demande:', requestId);
+    
+    await updateDoc(doc(db, 'petAssignmentRequests', requestId), {
+      status: 'cancelled',
+      processedAt: serverTimestamp(),
+    });
+    
+    console.log('✅ [cancelAssignmentRequest] Demande annulée avec succès');
+  } catch (error) {
+    console.error('❌ [cancelAssignmentRequest] Erreur:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
+// NOTIFICATIONS - Gestion des notifications utilisateur
+// ============================================================================
+
+/**
+ * Créer une notification pour un utilisateur
+ */
+export const addNotification = async (notificationData: Omit<Notification, 'id' | 'createdAt'>): Promise<string> => {
+  try {
+    console.log('🔔 [addNotification] Création notification pour:', notificationData.userId);
+    
+    const notification = {
+      ...notificationData,
+      createdAt: serverTimestamp(),
+    };
+    
+    const docRef = await addDoc(collection(db, 'notifications'), notification);
+    console.log('✅ [addNotification] Notification créée avec ID:', docRef.id);
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ [addNotification] Erreur:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer les notifications d'un utilisateur
+ */
+export const getNotificationsByUserId = async (userId: string): Promise<Notification[]> => {
+  try {
+    console.log('🔔 [getNotificationsByUserId] Récupération notifications pour:', userId);
+    
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const notifications: Notification[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      notifications.push({
+        id: doc.id,
+        ...doc.data(),
+      } as Notification);
+    });
+    
+    console.log('✅ [getNotificationsByUserId] Notifications récupérées:', notifications.length);
+    return notifications;
+  } catch (error) {
+    console.error('❌ [getNotificationsByUserId] Erreur:', error);
+    throw error;
+  }
+};
+
+/**
+ * Marquer une notification comme lue
+ */
+export const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+  try {
+    console.log('✅ [markNotificationAsRead] Marquage notification:', notificationId);
+    
+    await updateDoc(doc(db, 'notifications', notificationId), {
+      read: true,
+    });
+    
+    console.log('✅ [markNotificationAsRead] Notification marquée comme lue');
+  } catch (error) {
+    console.error('❌ [markNotificationAsRead] Erreur:', error);
+    throw error;
+  }
+};
+
+/**
+ * Supprimer une notification
+ */
+export const deleteNotification = async (notificationId: string): Promise<void> => {
+  try {
+    console.log('🗑️ [deleteNotification] Suppression notification:', notificationId);
+    
+    await deleteDoc(doc(db, 'notifications', notificationId));
+    
+    console.log('✅ [deleteNotification] Notification supprimée');
+  } catch (error) {
+    console.error('❌ [deleteNotification] Erreur:', error);
     throw error;
   }
 };

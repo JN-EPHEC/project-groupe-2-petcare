@@ -1,71 +1,71 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../theme';
 import { useAuth } from '../context/AuthContext';
-import * as Notifications from 'expo-notifications';
+import { getUnreadNotificationsCount } from '../services/notificationService';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 interface NotificationBellProps {
   onPress: () => void;
+  iconColor?: string;
+  backgroundColor?: string;
 }
 
-export const NotificationBell: React.FC<NotificationBellProps> = ({ onPress }) => {
+export const NotificationBell: React.FC<NotificationBellProps> = ({ 
+  onPress, 
+  iconColor = colors.navy, 
+  backgroundColor = colors.lightBlue 
+}) => {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     console.log('🔔 NotificationBell: useEffect déclenché, user:', user?.id);
-    if (!user) {
-      console.log('🔔 NotificationBell: Pas d\'utilisateur connecté, affichage quand même');
+    if (!user?.id) {
+      console.log('🔔 NotificationBell: Pas d\'utilisateur connecté');
       setIsLoaded(true);
+      setUnreadCount(0);
       return;
     }
 
     console.log('🔔 NotificationBell: Initialisation pour user:', user.id);
 
     try {
-      // Écouter les notifications entrantes pour mettre à jour le badge
-      const subscription = Notifications.addNotificationReceivedListener((notification) => {
-        console.log('🔔 Notification reçue:', notification);
-        setUnreadCount(prev => prev + 1);
+      // Écouter les changements de notifications en temps réel depuis Firestore
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', user.id),
+        where('read', '==', false)
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const count = snapshot.size;
+        console.log('🔔 Notifications non lues:', count);
+        setUnreadCount(count);
+        setIsLoaded(true);
+      }, (error) => {
+        console.error('🔔 Erreur écoute notifications:', error);
+        setUnreadCount(0);
+        setIsLoaded(true);
       });
 
-      // Charger le nombre initial de notifications non lues
-      loadUnreadCount();
-      setIsLoaded(true);
-
       return () => {
-        subscription.remove();
+        console.log('🔔 Nettoyage listener notifications');
+        unsubscribe();
       };
     } catch (error) {
       console.error('🔔 Erreur initialisation NotificationBell:', error);
+      setUnreadCount(0);
       setIsLoaded(true);
     }
-  }, [user]);
-
-  const loadUnreadCount = async () => {
-    try {
-      console.log('🔔 loadUnreadCount: Début chargement...');
-      // Pour l'instant, simuler avec les notifications planifiées
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      
-      // Dans une implémentation complète, vous feriez une requête Firestore
-      // pour compter les notifications non lues de l'utilisateur
-      // Exemple : const unread = await getUnreadNotificationsCount(user.id);
-      
-      console.log('🔔 Notifications planifiées:', scheduledNotifications.length);
-      setUnreadCount(scheduledNotifications.length);
-    } catch (error) {
-      console.error('🔔 Erreur chargement count notifications:', error);
-      // Continuer quand même, afficher 0
-      setUnreadCount(0);
-    }
-  };
+  }, [user?.id]);
 
   const handlePress = () => {
-    // Réinitialiser le compteur quand on ouvre les notifications
-    setUnreadCount(0);
+    // Le compteur sera mis à jour automatiquement via onSnapshot
+    // quand les notifications seront marquées comme lues
     onPress();
   };
 
@@ -73,7 +73,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ onPress }) =
 
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[styles.container, { backgroundColor }]} 
       onPress={handlePress}
       accessibilityLabel="Notifications"
       accessibilityHint={`${unreadCount} notification${unreadCount > 1 ? 's' : ''} non lue${unreadCount > 1 ? 's' : ''}`}
@@ -82,7 +82,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ onPress }) =
       <Ionicons 
         name={unreadCount > 0 ? "notifications" : "notifications-outline"} 
         size={28} 
-        color="#FFFFFF" 
+        color={iconColor} 
       />
       {unreadCount > 0 && (
         <View style={styles.badge}>
@@ -100,7 +100,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     padding: spacing.sm,
     marginRight: spacing.xs,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 50,
   },
   badge: {

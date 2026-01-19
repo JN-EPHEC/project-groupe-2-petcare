@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { PremiumGate } from '../../components';
 import { useAuth } from '../../context/AuthContext';
-import { createPetShareLink, getActiveShares, revokeShareLink, getPetsByOwnerId, Pet } from '../../services/firestoreService';
+import { createPetShareLink, getActiveShares, revokeShareLink, activateShareLink, getPetsByOwnerId, Pet } from '../../services/firestoreService';
 import { SharedPet } from '../../types/premium';
 
 interface SharePetScreenProps {
@@ -61,15 +61,22 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
     }
   };
   
+  const getShareUrl = (token: string): string => {
+    // Construire une URL web fonctionnelle
+    // En production, remplacer par votre domaine réel
+    const baseUrl = typeof window !== 'undefined' && window.location 
+      ? `${window.location.protocol}//${window.location.host}` 
+      : 'http://localhost:8081';
+    
+    return `${baseUrl}/share/${token}`;
+  };
+
   const handleCreateShare = async () => {
     if (!selectedPet) return;
     try {
       setIsCreating(true);
       const shareToken = await createPetShareLink(selectedPet.id, user?.id || '');
-      
-      // Construire l'URL de partage (à adapter selon votre configuration)
-      const shareUrl = `petcare://share/${shareToken}`;
-      // Pour le web : const shareUrl = `https://yourapp.com/share/${shareToken}`;
+      const shareUrl = getShareUrl(shareToken);
       
       Alert.alert(
         'Lien créé !',
@@ -114,28 +121,41 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
   };
   
   const handleCopyLink = (token: string) => {
-    const shareUrl = `petcare://share/${token}`;
+    const shareUrl = getShareUrl(token);
     Clipboard.setString(shareUrl);
     Alert.alert('Copié', 'Le lien a été copié dans le presse-papiers');
   };
+
+  const handleTestLink = (token: string) => {
+    // Naviguer vers la page de partage pour tester
+    navigation.navigate('SharedPetProfile', { shareToken: token });
+  };
   
-  const handleRevokeShare = (share: SharedPet) => {
+  const handleToggleShare = (share: SharedPet) => {
+    const isActive = share.isActive;
     Alert.alert(
-      'Révoquer l\'accès',
-      'Êtes-vous sûr de vouloir révoquer ce lien de partage ? Il ne sera plus accessible.',
+      isActive ? 'Désactiver le lien' : 'Activer le lien',
+      isActive 
+        ? 'Le lien ne sera plus accessible tant qu\'il est désactivé.' 
+        : 'Le lien redeviendra accessible.',
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Révoquer',
-          style: 'destructive',
+          text: isActive ? 'Désactiver' : 'Activer',
+          style: isActive ? 'destructive' : 'default',
           onPress: async () => {
             try {
-              await revokeShareLink(share.id);
+              if (isActive) {
+                await revokeShareLink(share.id);
+                Alert.alert('Succès', 'Le lien a été désactivé');
+              } else {
+                await activateShareLink(share.id);
+                Alert.alert('Succès', 'Le lien a été activé');
+              }
               await loadShares();
-              Alert.alert('Succès', 'Le lien de partage a été révoqué');
             } catch (error) {
-              console.error('Error revoking share:', error);
-              Alert.alert('Erreur', 'Impossible de révoquer le lien');
+              console.error('Error toggling share:', error);
+              Alert.alert('Erreur', 'Impossible de modifier le lien');
             }
           }
         }
@@ -159,6 +179,15 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
             <Text style={styles.headerTitle}>Partager le carnet</Text>
             <Text style={styles.headerSubtitle}>{selectedPet?.name || 'Choisissez un animal'}</Text>
           </View>
+
+          {selectedPet && (
+            <TouchableOpacity
+              style={styles.changePetButton}
+              onPress={() => setSelectedPet(null)}
+            >
+              <Ionicons name="swap-horizontal" size={20} color={colors.white} />
+            </TouchableOpacity>
+          )}
         </View>
         
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -243,7 +272,7 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
           {/* Active Shares */}
           <View style={styles.sharesSection}>
             <Text style={styles.sectionTitle}>
-              Liens actifs ({shares.length})
+              Liens de partage ({shares.filter(s => s.isActive).length} actif{shares.filter(s => s.isActive).length > 1 ? 's' : ''} sur {shares.length})
             </Text>
             
             {isLoading ? (
@@ -259,49 +288,74 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
                 </Text>
               </View>
             ) : (
-              shares.map(share => (
-                <View key={share.id} style={styles.shareCard}>
-                  <View style={styles.shareIcon}>
-                    <Ionicons name="link" size={24} color={colors.teal} />
-                  </View>
-                  
-                  <View style={styles.shareContent}>
-                    <Text style={styles.shareDate}>
-                      Créé le {new Date(share.createdAt).toLocaleDateString('fr-FR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      })}
-                    </Text>
-                    <Text style={styles.shareStats}>
-                      {share.accessCount} consultation{share.accessCount > 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.shareActions}>
-                    <TouchableOpacity 
-                      style={styles.shareActionButton}
-                      onPress={() => handleCopyLink(share.shareToken)}
-                    >
-                      <Ionicons name="copy-outline" size={20} color={colors.teal} />
-                    </TouchableOpacity>
+              shares.map(share => {
+                const isActive = share.isActive;
+                return (
+                  <View key={share.id} style={[styles.shareCard, !isActive && styles.shareCardInactive]}>
+                    <View style={[styles.shareIcon, !isActive && styles.shareIconInactive]}>
+                      <Ionicons name={isActive ? "link" : "link-outline"} size={24} color={isActive ? colors.teal : colors.gray} />
+                    </View>
                     
-                    <TouchableOpacity 
-                      style={styles.shareActionButton}
-                      onPress={() => handleShare(`petcare://share/${share.shareToken}`)}
-                    >
-                      <Ionicons name="share-social-outline" size={20} color={colors.teal} />
-                    </TouchableOpacity>
+                    <View style={styles.shareContent}>
+                      <View style={styles.shareHeader}>
+                        <Text style={styles.shareDate}>
+                          Créé le {new Date(share.createdAt).toLocaleDateString('fr-FR', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </Text>
+                        <View style={[styles.statusBadge, isActive ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
+                          <View style={[styles.statusDot, isActive ? styles.statusDotActive : styles.statusDotInactive]} />
+                          <Text style={[styles.statusText, isActive ? styles.statusTextActive : styles.statusTextInactive]}>
+                            {isActive ? 'Actif' : 'Inactif'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.shareStats}>
+                        {share.accessCount} consultation{share.accessCount > 1 ? 's' : ''}
+                      </Text>
+                    </View>
                     
-                    <TouchableOpacity 
-                      style={[styles.shareActionButton, styles.revokeButton]}
-                      onPress={() => handleRevokeShare(share)}
-                    >
-                      <Ionicons name="trash-outline" size={20} color={colors.error} />
-                    </TouchableOpacity>
+                    <View style={styles.shareActions}>
+                      <TouchableOpacity 
+                        style={[styles.shareActionButton, !isActive && styles.shareActionButtonDisabled]}
+                        onPress={() => handleCopyLink(share.shareToken)}
+                        disabled={!isActive}
+                      >
+                        <Ionicons name="copy-outline" size={20} color={isActive ? colors.teal : colors.lightGray} />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[styles.shareActionButton, !isActive && styles.shareActionButtonDisabled]}
+                        onPress={() => handleShare(getShareUrl(share.shareToken))}
+                        disabled={!isActive}
+                      >
+                        <Ionicons name="share-social-outline" size={20} color={isActive ? colors.teal : colors.lightGray} />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[styles.shareActionButton, !isActive && styles.shareActionButtonDisabled]}
+                        onPress={() => handleTestLink(share.shareToken)}
+                        disabled={!isActive}
+                      >
+                        <Ionicons name="open-outline" size={20} color={isActive ? colors.teal : colors.lightGray} />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[styles.shareActionButton, isActive ? styles.toggleButtonActive : styles.toggleButtonInactive]}
+                        onPress={() => handleToggleShare(share)}
+                      >
+                        <Ionicons 
+                          name={isActive ? "pause-outline" : "play-outline"} 
+                          size={20} 
+                          color={isActive ? colors.orange : colors.success} 
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
           </View>
           
@@ -391,6 +445,15 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.lightBlue,
     marginTop: spacing.xs,
+  },
+  changePetButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: spacing.sm,
   },
   content: {
     flex: 1,
@@ -489,6 +552,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  shareCardInactive: {
+    opacity: 0.6,
+    backgroundColor: '#F5F5F5',
+  },
   shareIcon: {
     width: 48,
     height: 48,
@@ -498,18 +565,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: spacing.md,
   },
+  shareIconInactive: {
+    backgroundColor: '#E0E0E0',
+  },
   shareContent: {
     flex: 1,
+  },
+  shareHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
   },
   shareDate: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semiBold,
     color: colors.navy,
-    marginBottom: spacing.xs,
   },
   shareStats: {
     fontSize: typography.fontSize.xs,
     color: colors.gray,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    gap: 4,
+  },
+  statusBadgeActive: {
+    backgroundColor: '#E8F5E9',
+  },
+  statusBadgeInactive: {
+    backgroundColor: '#FFEBEE',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusDotActive: {
+    backgroundColor: colors.success,
+  },
+  statusDotInactive: {
+    backgroundColor: colors.error,
+  },
+  statusText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  statusTextActive: {
+    color: colors.success,
+  },
+  statusTextInactive: {
+    color: colors.error,
   },
   shareActions: {
     flexDirection: 'row',
@@ -523,8 +633,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  revokeButton: {
-    backgroundColor: '#FFEBEE',
+  shareActionButtonDisabled: {
+    opacity: 0.4,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#FFF3E0',
+  },
+  toggleButtonInactive: {
+    backgroundColor: '#E8F5E9',
   },
   featuresSection: {
     marginBottom: spacing.xl,

@@ -7,6 +7,7 @@ import { Button } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { collection, addDoc, onSnapshot, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { PRICING_PLANS, PricingPlan } from '../../config/stripe';
 
 interface PremiumScreenProps {
   navigation: any;
@@ -19,6 +20,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ navigation }) => {
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan>(PRICING_PLANS[1]); // Trimestriel par défaut
 
   // Écouter les changements de subscription
   useEffect(() => {
@@ -55,17 +57,15 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ navigation }) => {
     setIsProcessing(true);
 
     try {
-      // ID du prix Stripe pour l'abonnement PetCare+ Premium (€9.99/mois)
-      const STRIPE_PRICE_ID = 'price_1SlHt3Pl02UR2jNdElawIfY9'; // ✅ ID configuré
-
-      console.log('📝 Création de la session checkout...');
+      console.log('📝 Création de la session checkout avec le plan:', selectedPlan.name);
+      console.log('💰 Price ID:', selectedPlan.priceId);
 
       // Créer le document checkout_session
       // L'extension Firebase détectera ce document et créera la session Stripe
       const checkoutSessionRef = await addDoc(
         collection(db, 'customers', user.id, 'checkout_sessions'),
         {
-          price: STRIPE_PRICE_ID,
+          price: selectedPlan.priceId,
           success_url: Platform.OS === 'web' ? `${window.location.origin}?stripe_payment_success=true` : 'petcare://payment-processing',
           cancel_url: Platform.OS === 'web' ? `${window.location.origin}?stripe_payment_canceled=true` : 'petcare://premium',
           mode: 'subscription',
@@ -74,6 +74,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ navigation }) => {
           metadata: {
             userId: user.id,
             userEmail: user.email,
+            plan: selectedPlan.id,
           },
         }
       );
@@ -277,6 +278,11 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ navigation }) => {
   if (user?.isPremium && currentSubscription) {
     const periodEnd = currentSubscription.current_period_end?.toDate?.();
     
+    // Trouver le plan correspondant à la subscription
+    const subscribedPlan = PRICING_PLANS.find(
+      plan => currentSubscription.items?.[0]?.price?.id === plan.priceId
+    ) || PRICING_PLANS[0]; // Fallback sur le plan mensuel
+    
     return (
       <>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -306,7 +312,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ navigation }) => {
             </View>
             <View style={styles.subscriptionRow}>
               <Text style={styles.subscriptionLabel}>Plan</Text>
-              <Text style={styles.subscriptionValue}>€9.99/mois</Text>
+              <Text style={styles.subscriptionValue}>{subscribedPlan.price}/{subscribedPlan.period}</Text>
             </View>
             {periodEnd && (
               <View style={styles.subscriptionRow}>
@@ -417,12 +423,51 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ navigation }) => {
           <Ionicons name="star" size={60} color="#FFB300" />
         </View>
         <Text style={styles.title}>Passez à Premium</Text>
-        <Text style={styles.subtitle}>Débloquez toutes les fonctionnalités</Text>
-        
-        <View style={styles.priceCard}>
-          <Text style={styles.priceAmount}>€9.99</Text>
-          <Text style={styles.pricePeriod}>/ mois</Text>
-        </View>
+        <Text style={styles.subtitle}>Choisissez le plan qui vous convient</Text>
+      </View>
+
+      {/* Pricing Plans */}
+      <View style={styles.pricingSection}>
+        {PRICING_PLANS.map((plan) => (
+          <TouchableOpacity
+            key={plan.id}
+            style={[
+              styles.pricingCard,
+              selectedPlan.id === plan.id && styles.pricingCardSelected,
+              plan.popular && styles.pricingCardPopular,
+            ]}
+            onPress={() => setSelectedPlan(plan)}
+            activeOpacity={0.8}
+          >
+            {plan.popular && (
+              <View style={styles.popularBadge}>
+                <Text style={styles.popularText}>POPULAIRE</Text>
+              </View>
+            )}
+            
+            <View style={styles.pricingHeader}>
+              <Text style={styles.planName}>{plan.name}</Text>
+              {plan.savings && (
+                <View style={styles.savingsBadge}>
+                  <Text style={styles.savingsText}>{plan.savings}</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.priceContainer}>
+              <Text style={styles.priceAmount}>{plan.price}</Text>
+              <Text style={styles.pricePeriod}>/ {plan.period}</Text>
+            </View>
+
+            <Text style={styles.billingPeriod}>{plan.billingPeriod}</Text>
+
+            <View style={styles.checkmark}>
+              {selectedPlan.id === plan.id && (
+                <Ionicons name="checkmark-circle" size={28} color={colors.teal} />
+              )}
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Features Grid */}
@@ -520,23 +565,88 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     textAlign: 'center',
   },
-  priceCard: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    backgroundColor: '#667eea',
+  // Pricing Section
+  pricingSection: {
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.xl,
+    marginBottom: spacing.xl,
+    gap: spacing.md,
   },
-  priceAmount: {
-    fontSize: 48,
+  pricingCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    borderWidth: 2,
+    borderColor: colors.lightGray,
+    position: 'relative',
+  },
+  pricingCardSelected: {
+    borderColor: colors.teal,
+    backgroundColor: '#E0F7F4',
+  },
+  pricingCardPopular: {
+    borderColor: '#FFB300',
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 20,
+    backgroundColor: '#FFB300',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  popularText: {
+    fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
+    letterSpacing: 0.5,
+  },
+  pricingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  planName: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+  },
+  savingsBadge: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
+  },
+  savingsText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.white,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: spacing.xs,
+  },
+  priceAmount: {
+    fontSize: 42,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
   },
   pricePeriod: {
     fontSize: typography.fontSize.lg,
-    color: colors.white,
-    marginLeft: spacing.sm,
+    color: colors.gray,
+    marginLeft: spacing.xs,
+  },
+  billingPeriod: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    marginBottom: spacing.sm,
+  },
+  checkmark: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.lg,
   },
   featuresSection: {
     paddingHorizontal: spacing.xl,

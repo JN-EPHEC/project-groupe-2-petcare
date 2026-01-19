@@ -2,13 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator, Modal, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { CommonActions } from '@react-navigation/native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { LanguageSwitcher } from '../../components';
 import { uploadUserAvatar } from '../../services/imageUploadService';
-import { updateUserProfile, getPetsByVetId } from '../../services/firestoreService';
+import { updateUserProfile, getPetsByVetId, getVetSchedule, VetSchedule } from '../../services/firestoreService';
 
 interface VetProfileScreenProps {
   navigation: any;
@@ -26,6 +26,8 @@ export const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ navigation }
   const [consultationsCount, setConsultationsCount] = useState<number | null>(null);
   const [yearsOfExperience, setYearsOfExperience] = useState<string>('N/A');
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [vetSchedule, setVetSchedule] = useState<VetSchedule | null>(null);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
 
   // Utiliser les VRAIES données de l'utilisateur depuis Firebase
   const vetInfo = {
@@ -90,10 +92,73 @@ export const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ navigation }
     }
   }, [user]);
 
-  // Charger les stats au montage du composant
+  // Charger les horaires du vétérinaire
+  const loadSchedule = useCallback(async () => {
+    if (!user?.id) {
+      setIsLoadingSchedule(false);
+      return;
+    }
+
+    try {
+      setIsLoadingSchedule(true);
+      const schedule = await getVetSchedule(user.id);
+      setVetSchedule(schedule);
+      console.log('✅ Horaires chargés:', schedule);
+    } catch (error) {
+      console.error('❌ Erreur chargement horaires:', error);
+      setVetSchedule(null);
+    } finally {
+      setIsLoadingSchedule(false);
+    }
+  }, [user]);
+
+  // Charger les stats et horaires au montage du composant et à chaque focus
   useEffect(() => {
     loadStats();
-  }, [loadStats]);
+    loadSchedule();
+  }, [loadStats, loadSchedule]);
+
+  // Recharger les données quand on revient sur cet écran
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 VetProfileScreen focused - Rechargement des données...');
+      loadStats();
+      loadSchedule();
+    }, [loadStats, loadSchedule])
+  );
+
+  // Formater les horaires pour l'affichage
+  const formatScheduleText = (): string => {
+    if (!vetSchedule) return 'Horaires non définis';
+    
+    const dayNames: Record<string, string> = {
+      monday: 'Lun',
+      tuesday: 'Mar',
+      wednesday: 'Mer',
+      thursday: 'Jeu',
+      friday: 'Ven',
+      saturday: 'Sam',
+      sunday: 'Dim',
+    };
+    
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const openDays: string[] = [];
+    
+    days.forEach((day) => {
+      const daySchedule = vetSchedule[day as keyof typeof vetSchedule];
+      if (daySchedule && typeof daySchedule === 'object' && 'enabled' in daySchedule && daySchedule.enabled) {
+        openDays.push(`${dayNames[day]}: ${daySchedule.start}-${daySchedule.end}`);
+      }
+    });
+    
+    return openDays.length > 0 ? openDays.join(', ') : 'Fermé';
+  };
+
+  // Obtenir le nombre de nuits d'astreinte
+  const getOnCallNightsCount = (): number => {
+    if (!vetSchedule || !vetSchedule.onCallDates) return 0;
+    return vetSchedule.onCallDates.length;
+  };
 
   const handleChangePhoto = () => {
     console.log('📸 handleChangePhoto called');
@@ -334,20 +399,47 @@ export const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ navigation }
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
             <Ionicons name="cash" size={20} color={colors.teal} />
-            <Text style={styles.infoText}>Consultation: {vetInfo.consultationRate}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.infoText}>Consultation: {vetInfo.consultationRate}</Text>
+              {vetSchedule?.appointmentDuration && (
+                <Text style={styles.infoSubText}>
+                  Durée: {vetSchedule.appointmentDuration === 60 ? '1 heure' : `${vetSchedule.appointmentDuration} min`}
+                </Text>
+              )}
+            </View>
           </View>
+          
           <View style={styles.infoRow}>
             <Ionicons name="time" size={20} color={colors.teal} />
-            <Text style={styles.infoText}>Lun-Ven: 9h-18h, Sam: 9h-12h</Text>
+            <View style={{ flex: 1 }}>
+              {isLoadingSchedule ? (
+                <Text style={styles.infoText}>Chargement des horaires...</Text>
+              ) : (
+                <Text style={styles.infoText}>{formatScheduleText()}</Text>
+              )}
+            </View>
           </View>
+          
+          {vetSchedule && vetSchedule.onCallDates && vetSchedule.onCallDates.length > 0 && (
+            <View style={styles.infoRow}>
+              <Ionicons name="moon" size={20} color="#FFB347" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoText}>
+                  Astreintes: {getOnCallNightsCount()} nuit{getOnCallNightsCount() > 1 ? 's' : ''} planifiée{getOnCallNightsCount() > 1 ? 's' : ''}
+                </Text>
+                <Text style={styles.infoSubText}>Disponible pour les urgences</Text>
+              </View>
+            </View>
+          )}
+          
           <View style={styles.infoRow}>
             <Ionicons 
-              name="alert-circle" 
+              name={vetSchedule?.acceptNewPatients !== false ? "checkmark-circle" : "close-circle"}
               size={20} 
-              color={vetInfo.emergencyAvailable ? '#4ECDC4' : colors.gray} 
+              color={vetSchedule?.acceptNewPatients !== false ? '#4ECDC4' : colors.gray} 
             />
             <Text style={styles.infoText}>
-              {vetInfo.emergencyAvailable ? 'Urgences disponibles 24/7' : 'Pas d\'urgences'}
+              {vetSchedule?.acceptNewPatients !== false ? 'Accepte les nouveaux patients' : 'N\'accepte pas de nouveaux patients'}
             </Text>
           </View>
         </View>
@@ -401,7 +493,7 @@ export const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ navigation }
 
         <TouchableOpacity 
           style={[styles.actionButton, styles.secondaryButton]}
-          onPress={() => navigation.navigate('NotificationSettings')}
+          onPress={() => navigation.navigate('VetNotifications')}
         >
           <Ionicons name="notifications" size={24} color={colors.teal} />
           <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
@@ -663,6 +755,11 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.black,
     flex: 1,
+  },
+  infoSubText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    marginTop: spacing.xs,
   },
   languagesContainer: {
     flexDirection: 'row',

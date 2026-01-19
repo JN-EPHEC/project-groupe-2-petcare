@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
@@ -142,9 +143,10 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
         petName: selectedPet.name,
         date,
         time,
+        type: reason.trim(), // Le type est la raison de la consultation
         reason: reason.trim(),
         notes: notes.trim() || undefined,
-        status: 'pending',
+        status: 'pending' as 'pending',
         createdAt: new Date().toISOString(),
       };
       
@@ -204,11 +206,6 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
   const availablePets = selectedVetId 
     ? pets.filter(pet => pet.vetId === selectedVetId)
     : pets;
-
-  const petOptions = availablePets.map(p => ({
-    value: p.id,
-    label: `${p.emoji || '🐾'} ${p.name}${p.vetName ? ` (Dr. ${p.vetName.split(' ')[1] || p.vetName})` : ''}`,
-  }));
 
   return (
     <View style={styles.container}>
@@ -315,30 +312,41 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
               </Text>
             </View>
           ) : (
-            <CustomPicker
-              value={selectedPetId}
-              onValueChange={setSelectedPetId}
-              options={petOptions}
-              placeholder={selectedVetId ? "Sélectionner un animal suivi par ce vétérinaire" : "Sélectionner d'abord un vétérinaire"}
-              icon="paw"
-              disabled={!selectedVetId}
-            />
-          )}
-
-          {selectedPet && (
-            <View style={styles.selectedInfo}>
-              <Text style={styles.selectedInfoEmoji}>{selectedPet.emoji || '🐾'}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.selectedInfoText}>{selectedPet.name}</Text>
-                <Text style={styles.selectedInfoSubtext}>
-                  {selectedPet.breed} • {selectedPet.age} an(s)
-                </Text>
-                {selectedPet.vetName && (
-                  <Text style={styles.selectedInfoSubtext}>
-                    👨‍⚕️ Suivi par: Dr. {selectedPet.vetName.split(' ')[1] || selectedPet.vetName}
-                  </Text>
-                )}
-              </View>
+            <View style={styles.petSelectionContainer}>
+              {availablePets.map(pet => (
+                <TouchableOpacity
+                  key={pet.id}
+                  style={[
+                    styles.petCard,
+                    selectedPetId === pet.id && styles.petCardSelected
+                  ]}
+                  onPress={() => setSelectedPetId(pet.id)}
+                  disabled={!selectedVetId}
+                >
+                  {pet.avatarUrl ? (
+                    <Image 
+                      source={{ uri: pet.avatarUrl }} 
+                      style={styles.petCardImage}
+                    />
+                  ) : (
+                    <View style={styles.petCardEmojiContainer}>
+                      <Text style={styles.petCardEmoji}>{pet.emoji || '🐾'}</Text>
+                    </View>
+                  )}
+                  <View style={styles.petCardInfo}>
+                    <Text style={styles.petCardName}>{pet.name}</Text>
+                    <Text style={styles.petCardBreed}>{pet.breed}</Text>
+                    {pet.vetName && (
+                      <Text style={styles.petCardVet}>
+                        👨‍⚕️ Dr. {pet.vetName.split(' ')[1] || pet.vetName}
+                      </Text>
+                    )}
+                  </View>
+                  {selectedPetId === pet.id && (
+                    <Ionicons name="checkmark-circle" size={28} color={colors.teal} />
+                  )}
+                </TouchableOpacity>
+              ))}
             </View>
           )}
         </View>
@@ -524,6 +532,12 @@ const styles = StyleSheet.create({
   selectedInfoEmoji: {
     fontSize: 32,
   },
+  selectedPetImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.lightGray,
+  },
   selectedInfoText: {
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semiBold,
@@ -630,6 +644,59 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semiBold,
     color: colors.white,
+  },
+  petSelectionContainer: {
+    gap: spacing.md,
+  },
+  petCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 2,
+    borderColor: colors.lightGray,
+    gap: spacing.md,
+  },
+  petCardSelected: {
+    borderColor: colors.teal,
+    backgroundColor: colors.lightBlue,
+  },
+  petCardImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.lightGray,
+  },
+  petCardEmojiContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.lightBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  petCardEmoji: {
+    fontSize: 32,
+  },
+  petCardInfo: {
+    flex: 1,
+  },
+  petCardName: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    marginBottom: 2,
+  },
+  petCardBreed: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    marginBottom: 2,
+  },
+  petCardVet: {
+    fontSize: typography.fontSize.xs,
+    color: colors.teal,
+    fontWeight: typography.fontWeight.semiBold,
   },
 });
 

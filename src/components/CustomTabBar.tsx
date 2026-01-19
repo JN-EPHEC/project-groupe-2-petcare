@@ -77,10 +77,15 @@ export const CustomTabBar: React.FC<CustomTabBarProps> = ({ state, descriptors, 
 
           // Bouton Profile (user elevé)
           if (route.name === 'ProfileTab') {
+            const onProfilePress = () => {
+              // Toujours naviguer vers le profil du propriétaire, pas celui de l'animal
+              navigation.navigate('ProfileTab', { screen: 'OwnerProfile' });
+            };
+
             return (
               <TouchableOpacity
                 key={route.key}
-                onPress={onPress}
+                onPress={onProfilePress}
                 style={styles.profileButtonContainer}
                 activeOpacity={0.8}
               >

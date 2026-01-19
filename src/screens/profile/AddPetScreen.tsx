@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { Button, Input, CustomPicker } from '../../components';
-import { addPet, getVets } from '../../services/firestoreService';
+import { addPet, getVets, createPetAssignmentRequest, addNotification } from '../../services/firestoreService';
 import { uploadPetImage } from '../../services/imageUploadService';
 import { useAuth } from '../../context/AuthContext';
 import { PET_SPECIES, PET_BREEDS, GENDER_OPTIONS, STERILIZATION_STATUS } from '../../data/petSpeciesAndBreeds';
@@ -313,17 +313,53 @@ export const AddPetScreen: React.FC<AddPetScreenProps> = ({ navigation }) => {
         avatarUrl,
       };
 
-      // Ajouter vetId et vetName seulement s'ils existent
-      if (selectedVet?.id) {
-        petData.vetId = selectedVet.id;
-        petData.vetName = `${selectedVet.firstName} ${selectedVet.lastName}`;
-      }
+      // NE PAS assigner directement le vétérinaire - créer une demande d'approbation à la place
 
       console.log('📦 Données animal à sauvegarder:', petData);
       console.log('📦 avatarUrl dans petData:', petData.avatarUrl);
       
-      await addPet(petData);
-      console.log('✅ Animal ajouté avec succès:', petData.name);
+      const petId = await addPet(petData);
+      console.log('✅ Animal ajouté avec succès:', petData.name, 'ID:', petId);
+
+      // Si un vétérinaire a été sélectionné, créer une demande d'assignation
+      if (selectedVet?.id && petId) {
+        console.log('📝 Création demande d\'assignation pour vétérinaire:', selectedVet.firstName, selectedVet.lastName);
+        
+        try {
+          const requestId = await createPetAssignmentRequest({
+            petId: petId,
+            petName: petData.name,
+            petType: petData.type,
+            petBreed: petData.breed,
+            petAvatar: petData.avatarUrl || petData.emoji,
+            ownerId: user.id,
+            ownerName: `${user.firstName} ${user.lastName}`,
+            vetId: selectedVet.id,
+            vetName: `${selectedVet.firstName} ${selectedVet.lastName}`,
+          });
+
+          // Créer une notification pour le vétérinaire
+          await addNotification({
+            userId: selectedVet.id,
+            type: 'pet_assignment_request',
+            title: 'Nouvelle demande de prise en charge',
+            message: `${user.firstName} ${user.lastName} souhaite vous confier ${petData.name} (${petData.type})`,
+            read: false,
+            data: {
+              requestId,
+              petId: petId,
+              petName: petData.name,
+              ownerId: user.id,
+              ownerName: `${user.firstName} ${user.lastName}`,
+            },
+          });
+
+          console.log('✅ Demande d\'assignation créée avec succès');
+        } catch (vetError) {
+          console.error('❌ Erreur création demande vétérinaire:', vetError);
+          // Ne pas bloquer la création de l'animal si la demande échoue
+        }
+      }
 
       // Rafraîchir la liste des animaux dans le contexte
       console.log('🔄 Rafraîchissement de la liste des animaux...');

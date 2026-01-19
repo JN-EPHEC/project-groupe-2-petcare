@@ -2,7 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { updateDoc, doc } from 'firebase/firestore';
+import { updateDoc, doc, addDoc, collection, query, where, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 // Configuration des notifications
@@ -213,6 +213,12 @@ export const scheduleNotification = async (
   type: NotificationType = 'general'
 ): Promise<string | null> => {
   try {
+    // Les notifications locales ne sont pas disponibles sur le web
+    if (Platform.OS === 'web') {
+      console.log('⚠️ Notifications locales non disponibles sur le web (utilisez les notifications Firestore)');
+      return null;
+    }
+
     const preferences = await getNotificationPreferences();
 
     // Vérifier si les notifications sont activées
@@ -270,6 +276,12 @@ export const sendImmediateNotification = async (
   type: NotificationType = 'general'
 ): Promise<string | null> => {
   try {
+    // Les notifications locales ne sont pas disponibles sur le web
+    if (Platform.OS === 'web') {
+      console.log('⚠️ Notifications locales non disponibles sur le web');
+      return null;
+    }
+
     const preferences = await getNotificationPreferences();
 
     if (!preferences.enabled) {
@@ -301,6 +313,10 @@ export const sendImmediateNotification = async (
 // Annuler une notification planifiée
 export const cancelNotification = async (identifier: string): Promise<void> => {
   try {
+    if (Platform.OS === 'web') {
+      console.log('⚠️ Annulation de notifications non disponible sur le web');
+      return;
+    }
     await Notifications.cancelScheduledNotificationAsync(identifier);
     console.log('✅ Notification annulée:', identifier);
   } catch (error) {
@@ -311,6 +327,10 @@ export const cancelNotification = async (identifier: string): Promise<void> => {
 // Annuler toutes les notifications planifiées
 export const cancelAllNotifications = async (): Promise<void> => {
   try {
+    if (Platform.OS === 'web') {
+      console.log('⚠️ Annulation de notifications non disponible sur le web');
+      return;
+    }
     await Notifications.cancelAllScheduledNotificationsAsync();
     console.log('✅ Toutes les notifications annulées');
   } catch (error) {
@@ -321,6 +341,11 @@ export const cancelAllNotifications = async (): Promise<void> => {
 // Obtenir toutes les notifications planifiées
 export const getAllScheduledNotifications = async (): Promise<Notifications.NotificationRequest[]> => {
   try {
+    // Les notifications planifiées ne sont pas disponibles sur le web
+    if (Platform.OS === 'web') {
+      console.log('⚠️ Notifications planifiées non disponibles sur le web');
+      return [];
+    }
     return await Notifications.getAllScheduledNotificationsAsync();
   } catch (error) {
     console.error('Erreur récupération notifications planifiées:', error);
@@ -331,6 +356,9 @@ export const getAllScheduledNotifications = async (): Promise<Notifications.Noti
 // Effacer le badge
 export const clearBadge = async (): Promise<void> => {
   try {
+    if (Platform.OS === 'web') {
+      return; // Les badges ne sont pas disponibles sur le web
+    }
     await Notifications.setBadgeCountAsync(0);
   } catch (error) {
     console.error('Erreur effacement badge:', error);
@@ -393,6 +421,140 @@ export const scheduleVaccinationNotification = async (
   );
 };
 
+// Sauvegarder une notification dans Firestore
+export const saveNotificationToFirestore = async (
+  userId: string,
+  title: string,
+  body: string,
+  type: string,
+  data: any = {}
+): Promise<string | null> => {
+  try {
+    console.log('💾 Sauvegarde notification dans Firestore pour:', userId);
+    const docRef = await addDoc(collection(db, 'notifications'), {
+      userId,
+      title,
+      body,
+      type,
+      data,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+    console.log('✅ Notification sauvegardée dans Firestore:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Erreur sauvegarde notification dans Firestore:', error);
+    return null;
+  }
+};
+
+// Interface pour une notification Firestore
+export interface FirestoreNotification {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  type: string;
+  data?: any;
+  read: boolean;
+  createdAt: any;
+  readAt?: any;
+}
+
+// Récupérer toutes les notifications d'un utilisateur (lues + non lues)
+export const getAllNotificationsFromFirestore = async (userId: string): Promise<FirestoreNotification[]> => {
+  try {
+    console.log('📥 Récupération notifications Firestore pour:', userId);
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', userId),
+      // orderBy('createdAt', 'desc') // On trie côté client pour éviter les erreurs d'index
+    );
+    const snapshot = await getDocs(q);
+    
+    const notifications: FirestoreNotification[] = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    } as FirestoreNotification));
+    
+    // Tri côté client par date de création (plus récent en premier)
+    notifications.sort((a, b) => {
+      const dateA = a.createdAt?.toDate?.() || new Date(0);
+      const dateB = b.createdAt?.toDate?.() || new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    console.log('✅ Notifications récupérées:', notifications.length);
+    return notifications;
+  } catch (error) {
+    console.error('❌ Erreur récupération notifications Firestore:', error);
+    return [];
+  }
+};
+
+// Récupérer le nombre de notifications non lues
+export const getUnreadNotificationsCount = async (userId: string): Promise<number> => {
+  try {
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', userId),
+      where('read', '==', false)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  } catch (error) {
+    console.error('❌ Erreur comptage notifications non lues:', error);
+    return 0;
+  }
+};
+
+// Marquer une notification comme lue
+export const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+  try {
+    await updateDoc(doc(db, 'notifications', notificationId), {
+      read: true,
+      readAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('❌ Erreur marquage notification comme lue:', error);
+  }
+};
+
+// Marquer toutes les notifications comme lues
+export const markAllNotificationsAsRead = async (userId: string): Promise<void> => {
+  try {
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', userId),
+      where('read', '==', false)
+    );
+    const snapshot = await getDocs(q);
+    
+    const updatePromises = snapshot.docs.map(doc => 
+      updateDoc(doc.ref, {
+        read: true,
+        readAt: serverTimestamp(),
+      })
+    );
+    
+    await Promise.all(updatePromises);
+    console.log('✅ Toutes les notifications marquées comme lues');
+  } catch (error) {
+    console.error('❌ Erreur marquage toutes notifications:', error);
+  }
+};
+
+// Supprimer une notification Firestore
+export const deleteNotificationFromFirestore = async (notificationId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'notifications', notificationId));
+    console.log('✅ Notification supprimée de Firestore:', notificationId);
+  } catch (error) {
+    console.error('❌ Erreur suppression notification Firestore:', error);
+    throw error;
+  }
+};
+
 // Envoyer une notification immédiate pour une nouvelle demande de RDV
 export const sendNewAppointmentRequestNotification = async (
   vetId: string,
@@ -405,13 +567,31 @@ export const sendNewAppointmentRequestNotification = async (
   try {
     console.log('🔔 sendNewAppointmentRequestNotification:', { vetId, petName, ownerName, requestedDate, requestedTime });
     
-    // Notification immédiate (maintenant + 1 seconde pour éviter les problèmes)
+    const title = `Nouvelle demande de rendez-vous`;
+    const body = `${ownerName} souhaite un RDV pour ${petName} le ${requestedDate} à ${requestedTime}`;
+    
+    // 1. Sauvegarder dans Firestore pour la cloche de notifications
+    await saveNotificationToFirestore(
+      vetId,
+      title,
+      body,
+      'new_appointment_request',
+      { 
+        appointmentId, 
+        petName, 
+        ownerName, 
+        requestedDate, 
+        requestedTime 
+      }
+    );
+    
+    // 2. Envoyer notification locale (push)
     const now = new Date();
     now.setSeconds(now.getSeconds() + 1);
     
     return scheduleNotification(
-      `Nouvelle demande de rendez-vous`,
-      `${ownerName} souhaite un RDV pour ${petName} le ${requestedDate} à ${requestedTime}`,
+      title,
+      body,
       { 
         appointmentId, 
         petName, 
@@ -426,6 +606,42 @@ export const sendNewAppointmentRequestNotification = async (
     );
   } catch (error) {
     console.error('❌ Erreur envoi notification nouvelle demande:', error);
+    return null;
+  }
+};
+
+// Envoyer une notification immédiate pour l'acceptation/refus d'un RDV
+export const sendAppointmentStatusNotification = async (
+  ownerId: string,
+  title: string,
+  body: string,
+  data: any = {}
+): Promise<string | null> => {
+  try {
+    console.log('🔔 sendAppointmentStatusNotification:', { ownerId, title });
+    
+    // 1. Sauvegarder dans Firestore pour la cloche de notifications
+    await saveNotificationToFirestore(
+      ownerId,
+      title,
+      body,
+      data.type || 'appointment_status',
+      data
+    );
+    
+    // 2. Envoyer notification locale (push)
+    const now = new Date();
+    now.setSeconds(now.getSeconds() + 1);
+    
+    return scheduleNotification(
+      title,
+      body,
+      data,
+      now,
+      'appointment'
+    );
+  } catch (error) {
+    console.error('❌ Erreur envoi notification statut RDV:', error);
     return null;
   }
 };

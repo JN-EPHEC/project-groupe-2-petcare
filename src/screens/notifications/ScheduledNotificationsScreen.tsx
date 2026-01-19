@@ -14,10 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import {
-  getAllScheduledNotifications,
-  cancelNotification,
+  getAllNotificationsFromFirestore,
+  deleteNotificationFromFirestore,
+  markNotificationAsRead,
+  type FirestoreNotification,
 } from '../../services/notificationService';
-import type * as Notifications from 'expo-notifications';
+import { useAuth } from '../../context/AuthContext';
 
 interface ScheduledNotificationsScreenProps {
   navigation: any;
@@ -26,16 +28,24 @@ interface ScheduledNotificationsScreenProps {
 export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreenProps> = ({
   navigation,
 }) => {
-  const [notifications, setNotifications] = useState<Notifications.NotificationRequest[]>([]);
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<FirestoreNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadNotifications = async () => {
+    if (!user?.id) {
+      console.log('⚠️ Pas d\'utilisateur connecté');
+      setIsLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
-      const scheduled = await getAllScheduledNotifications();
-      console.log('📋 Notifications planifiées:', scheduled.length);
-      setNotifications(scheduled);
+      const firestoreNotifications = await getAllNotificationsFromFirestore(user.id);
+      console.log('📋 Notifications Firestore récupérées:', firestoreNotifications.length);
+      setNotifications(firestoreNotifications);
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
@@ -60,57 +70,120 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
     loadNotifications();
   };
 
-  const handleCancelNotification = async (identifier: string, title: string) => {
+  const handleDeleteNotification = async (notificationId: string, title: string) => {
     if (Platform.OS === 'web') {
-      if (!window.confirm(`Annuler la notification "${title}" ?`)) {
+      if (!window.confirm(`Supprimer la notification "${title}" ?`)) {
         return;
       }
     } else {
       Alert.alert(
-        'Annuler la notification',
-        `Êtes-vous sûr de vouloir annuler "${title}" ?`,
+        'Supprimer la notification',
+        `Êtes-vous sûr de vouloir supprimer "${title}" ?`,
         [
           { text: 'Non', style: 'cancel' },
           {
-            text: 'Oui, annuler',
+            text: 'Oui, supprimer',
             style: 'destructive',
-            onPress: () => performCancel(identifier),
+            onPress: () => performDelete(notificationId),
           },
         ]
       );
       return;
     }
 
-    await performCancel(identifier);
+    await performDelete(notificationId);
   };
 
-  const performCancel = async (identifier: string) => {
+  const performDelete = async (notificationId: string) => {
     try {
-      await cancelNotification(identifier);
-      console.log('✅ Notification annulée:', identifier);
+      await deleteNotificationFromFirestore(notificationId);
+      console.log('✅ Notification supprimée:', notificationId);
       await loadNotifications();
       
       if (Platform.OS === 'web') {
-        window.alert('Notification annulée avec succès');
+        window.alert('Notification supprimée avec succès');
       } else {
-        Alert.alert('Succès', 'Notification annulée avec succès');
+        Alert.alert('Succès', 'Notification supprimée avec succès');
       }
     } catch (error) {
-      console.error('Error canceling notification:', error);
+      console.error('Error deleting notification:', error);
       if (Platform.OS === 'web') {
-        window.alert('Erreur lors de l\'annulation');
+        window.alert('Erreur lors de la suppression');
       } else {
-        Alert.alert('Erreur', 'Impossible d\'annuler la notification');
+        Alert.alert('Erreur', 'Impossible de supprimer la notification');
       }
     }
   };
 
-  const handleEditNotification = (notification: Notifications.NotificationRequest) => {
-    navigation.navigate('EditNotification', { notification });
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await markNotificationAsRead(notificationId);
+      console.log('✅ Notification marquée comme lue:', notificationId);
+      await loadNotifications();
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleNotificationPress = async (notification: FirestoreNotification) => {
+    console.log('🔔 Notification pressée:', notification);
+    
+    // Marquer comme lue si pas encore lue
+    if (!notification.read) {
+      await handleMarkAsRead(notification.id);
+    }
+
+    // Navigation selon le type de notification
+    switch (notification.type) {
+      case 'new_appointment_request':
+        // Pour les vétérinaires : aller vers la page de gestion des RDV
+        console.log('→ Navigation vers ManageAppointments');
+        navigation.navigate('ManageAppointments', { 
+          appointmentId: notification.data?.appointmentId 
+        });
+        break;
+
+      case 'appointment_accepted':
+      case 'appointment_rejected':
+        // Pour les propriétaires : aller vers la page "Mes rendez-vous"
+        console.log('→ Navigation vers MyAppointments');
+        navigation.navigate('MyAppointments', { 
+          appointmentId: notification.data?.appointmentId 
+        });
+        break;
+
+      case 'reminder':
+        // Naviguer vers la page des rappels
+        console.log('→ Navigation vers Reminders');
+        if (notification.data?.reminderId) {
+          navigation.navigate('Reminders');
+        }
+        break;
+
+      case 'vaccination':
+        // Naviguer vers la page des vaccinations
+        console.log('→ Navigation vers Vaccinations');
+        if (notification.data?.petId) {
+          navigation.navigate('Vaccinations', { 
+            petId: notification.data.petId 
+          });
+        }
+        break;
+
+      default:
+        console.log('⚠️ Type de notification non géré:', notification.type);
+        break;
+    }
   };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'new_appointment_request':
+        return 'calendar';
+      case 'appointment_accepted':
+        return 'checkmark-circle';
+      case 'appointment_rejected':
+        return 'close-circle';
       case 'reminder':
         return 'alarm';
       case 'appointment':
@@ -126,6 +199,12 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
 
   const getNotificationColor = (type: string) => {
     switch (type) {
+      case 'new_appointment_request':
+        return '#FF9800';
+      case 'appointment_accepted':
+        return '#4CAF50';
+      case 'appointment_rejected':
+        return '#F44336';
       case 'reminder':
         return '#FF9800';
       case 'appointment':
@@ -139,17 +218,17 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
     }
   };
 
-  const formatDate = (trigger: any): string => {
-    if (!trigger || !trigger.value) {
-      return 'Date non définie';
+  const formatDate = (createdAt: any): string => {
+    if (!createdAt) {
+      return 'Date inconnue';
     }
 
-    const date = new Date(trigger.value);
+    const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
     const now = new Date();
-    const diffMs = date.getTime() - now.getTime();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
     // Date formatée
     const formattedDate = date.toLocaleDateString('fr-FR', {
@@ -162,21 +241,21 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
       minute: '2-digit',
     });
 
-    // Temps restant
-    let timeRemaining = '';
-    if (diffMs < 0) {
-      timeRemaining = 'Expirée';
-    } else if (diffDays > 0) {
-      timeRemaining = `Dans ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
-    } else if (diffHours > 0) {
-      timeRemaining = `Dans ${diffHours}h ${diffMinutes}min`;
-    } else if (diffMinutes > 0) {
-      timeRemaining = `Dans ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+    // Temps écoulé
+    let timeAgo = '';
+    if (diffMinutes < 1) {
+      timeAgo = 'À l\'instant';
+    } else if (diffMinutes < 60) {
+      timeAgo = `Il y a ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+    } else if (diffHours < 24) {
+      timeAgo = `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+    } else if (diffDays < 7) {
+      timeAgo = `Il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
     } else {
-      timeRemaining = 'Dans quelques instants';
+      timeAgo = formattedDate;
     }
 
-    return `${formattedDate} à ${formattedTime}\n${timeRemaining}`;
+    return `${timeAgo}\n${formattedDate} à ${formattedTime}`;
   };
 
   if (isLoading) {
@@ -199,15 +278,13 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={28} color={colors.navy} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications à venir</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('CreateNotification')}>
-          <Ionicons name="add-circle" size={28} color={colors.teal} />
-        </TouchableOpacity>
-      </View>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={28} color={colors.navy} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Mes notifications</Text>
+          <View style={{ width: 28 }} />
+        </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -222,7 +299,12 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
           <View style={styles.statBox}>
             <Ionicons name="notifications" size={24} color={colors.teal} />
             <Text style={styles.statNumber}>{notifications.length}</Text>
-            <Text style={styles.statLabel}>Planifiée{notifications.length > 1 ? 's' : ''}</Text>
+            <Text style={styles.statLabel}>Notification{notifications.length > 1 ? 's' : ''}</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Ionicons name="eye-off" size={24} color="#FF9800" />
+            <Text style={styles.statNumber}>{notifications.filter(n => !n.read).length}</Text>
+            <Text style={styles.statLabel}>Non lue{notifications.filter(n => !n.read).length > 1 ? 's' : ''}</Text>
           </View>
         </View>
 
@@ -230,76 +312,78 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
         {notifications.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="notifications-off-outline" size={80} color={colors.lightGray} />
-            <Text style={styles.emptyTitle}>Aucune notification planifiée</Text>
+            <Text style={styles.emptyTitle}>Aucune notification</Text>
             <Text style={styles.emptySubtitle}>
-              Créez votre première notification pour recevoir des rappels importants
+              Vous recevrez ici vos notifications de rendez-vous, rappels, et autres messages importants
             </Text>
-            <TouchableOpacity
-              style={styles.createButton}
-              onPress={() => navigation.navigate('CreateNotification')}
-            >
-              <Ionicons name="add-circle" size={24} color={colors.white} />
-              <Text style={styles.createButtonText}>Créer une notification</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.listContainer}>
             {notifications.map((notification) => {
-              const type = notification.content.data?.type || 'general';
-              const icon = getNotificationIcon(type);
-              const color = getNotificationColor(type);
+              const icon = getNotificationIcon(notification.type);
+              const color = getNotificationColor(notification.type);
 
               return (
-                <View key={notification.identifier} style={styles.notificationCard}>
+                <TouchableOpacity
+                  key={notification.id}
+                  style={[
+                    styles.notificationCard,
+                    !notification.read && styles.unreadNotificationCard
+                  ]}
+                  onPress={() => handleNotificationPress(notification)}
+                >
                   <View style={[styles.notificationIconContainer, { backgroundColor: `${color}15` }]}>
                     <Ionicons name={icon as any} size={28} color={color} />
                   </View>
 
                   <View style={styles.notificationContent}>
-                    <Text style={styles.notificationTitle}>{notification.content.title}</Text>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.notificationTitle}>{notification.title}</Text>
+                      {!notification.read && (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadBadgeText}>Nouveau</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.notificationBody} numberOfLines={2}>
-                      {notification.content.body}
+                      {notification.body}
                     </Text>
                     <Text style={styles.notificationDate}>
-                      {formatDate(notification.trigger)}
+                      {formatDate(notification.createdAt)}
                     </Text>
                   </View>
 
                   <View style={styles.notificationActions}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.editButton]}
-                      onPress={() => handleEditNotification(notification)}
-                    >
-                      <Ionicons name="create-outline" size={20} color={colors.teal} />
-                    </TouchableOpacity>
+                    {!notification.read && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.readButton]}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleMarkAsRead(notification.id);
+                        }}
+                      >
+                        <Ionicons name="checkmark" size={20} color="#4CAF50" />
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                       style={[styles.actionButton, styles.deleteButton]}
-                      onPress={() =>
-                        handleCancelNotification(
-                          notification.identifier,
-                          notification.content.title || 'cette notification'
-                        )
-                      }
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDeleteNotification(
+                          notification.id,
+                          notification.title || 'cette notification'
+                        );
+                      }}
                     >
                       <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
         )}
       </ScrollView>
-
-      {/* Bouton flottant */}
-      {notifications.length > 0 && (
-        <TouchableOpacity
-          style={styles.floatingButton}
-          onPress={() => navigation.navigate('CreateNotification')}
-        >
-          <Ionicons name="add" size={28} color={colors.white} />
-        </TouchableOpacity>
-      )}
     </View>
   );
 };
@@ -338,9 +422,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statsContainer: {
+    flexDirection: 'row',
+    gap: spacing.md,
     marginBottom: spacing.xl,
   },
   statBox: {
+    flex: 1,
     backgroundColor: colors.white,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
@@ -410,6 +497,11 @@ const styles = StyleSheet.create({
     elevation: 3,
     gap: spacing.md,
   },
+  unreadNotificationCard: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 2,
+    borderColor: colors.teal,
+  },
   notificationIconContainer: {
     width: 56,
     height: 56,
@@ -420,11 +512,28 @@ const styles = StyleSheet.create({
   notificationContent: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
   notificationTitle: {
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
-    marginBottom: spacing.xs,
+    flex: 1,
+  },
+  unreadBadge: {
+    backgroundColor: colors.teal,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  unreadBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
   },
   notificationBody: {
     fontSize: typography.fontSize.sm,
@@ -448,27 +557,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  editButton: {
-    backgroundColor: '#E0F2F1',
+  readButton: {
+    backgroundColor: '#E8F5E9',
   },
   deleteButton: {
     backgroundColor: '#FFEBEE',
-  },
-  floatingButton: {
-    position: 'absolute',
-    bottom: spacing.xl,
-    right: spacing.xl,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.teal,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });
 

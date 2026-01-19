@@ -91,6 +91,14 @@ export const VaccinationsScreen: React.FC<VaccinationsScreenProps> = ({
     try {
       const vaccDate = new Date(date);
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time to compare dates only
+      vaccDate.setHours(0, 0, 0, 0);
+      
+      // Si la date du vaccin est dans le futur, c'est un rappel
+      if (vaccDate > today) {
+        return 'warning'; // Rappel futur
+      }
+
       const monthsDiff = (today.getTime() - vaccDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
 
       if (monthsDiff < 11) return 'ok'; // Moins de 11 mois
@@ -127,12 +135,22 @@ export const VaccinationsScreen: React.FC<VaccinationsScreenProps> = ({
     }
   };
 
-  const getStatusLabel = (status: string): string => {
+  const getStatusLabel = (status: string, date: string): string => {
     switch (status) {
       case 'ok':
         return 'À jour';
-      case 'warning':
+      case 'warning': {
+        // Vérifier si c'est un rappel futur ou un rappel imminent
+        const vaccDate = new Date(date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        vaccDate.setHours(0, 0, 0, 0);
+        
+        if (vaccDate > today) {
+          return 'Rappel prévu';
+        }
         return 'Rappel bientôt';
+      }
       case 'expired':
         return 'Expiré';
       default:
@@ -300,7 +318,7 @@ export const VaccinationsScreen: React.FC<VaccinationsScreenProps> = ({
                         color={colors.white}
                         style={{ marginRight: 4 }}
                       />
-                      <Text style={styles.statusText}>{getStatusLabel(status)}</Text>
+                      <Text style={styles.statusText}>{getStatusLabel(status, vaccination.date)}</Text>
                     </View>
                   </View>
 

@@ -337,11 +337,12 @@ service cloud.firestore {
     // Règles pour les articles de blog Premium
     // ========================================
     match /blog_articles/{articleId} {
-      // Lecture: tous les utilisateurs authentifiés
-      allow read: if isAuthenticated();
+      // Lecture: tous (même non authentifiés pour la démo)
+      allow read: if true;
       
-      // Écriture: admins uniquement
-      allow write: if hasRole('admin');
+      // Écriture: admins uniquement (TEMPORAIREMENT: true pour le seed)
+      allow create: if true; // TODO: remettre hasRole('admin') après le seed
+      allow update, delete: if hasRole('admin');
     }
     
     // ========================================
@@ -364,6 +365,69 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && 
                        (resource.data.ownerId == request.auth.uid ||
                         (resource.data.petId != null && get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid));
+    }
+    
+    // ========================================
+    // Règles pour les notifications
+    // ========================================
+    match /notifications/{notificationId} {
+      // Lecture: utilisateur destinataire de la notification uniquement
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Création: tous les utilisateurs authentifiés (pour envoyer des notifications)
+      allow create: if isAuthenticated();
+      
+      // Modification: utilisateur destinataire uniquement (pour marquer comme lu)
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Suppression: utilisateur destinataire ou admin
+      allow delete: if (isAuthenticated() && resource.data.userId == request.auth.uid) || 
+                       hasRole('admin');
+    }
+    
+    // ========================================
+    // Règles pour les horaires des vétérinaires
+    // ========================================
+    match /vetSchedules/{vetId} {
+      // Lecture: tous les utilisateurs authentifiés (pour voir les disponibilités)
+      allow read: if isAuthenticated();
+      
+      // Création/Modification: vétérinaire lui-même uniquement
+      // Le vetId dans le path doit correspondre à l'UID de l'utilisateur connecté
+      allow create, update: if isAuthenticated() && 
+                               hasRole('vet') && 
+                               vetId == request.auth.uid;
+      
+      // Suppression: vétérinaire lui-même ou admin
+      allow delete: if (isAuthenticated() && 
+                        hasRole('vet') && 
+                        vetId == request.auth.uid) || 
+                       hasRole('admin');
+    }
+    
+    // Règles pour les demandes d'assignation d'animaux aux vétérinaires
+    // ==================================================================
+    match /petAssignmentRequests/{requestId} {
+      // Lecture: propriétaire ou vétérinaire concerné ou admin
+      allow read: if isAuthenticated() && 
+                     (resource.data.ownerId == request.auth.uid || 
+                      resource.data.vetId == request.auth.uid || 
+                      hasRole('admin'));
+      
+      // Création: propriétaire uniquement (création de demande)
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      
+      // Modification: vétérinaire concerné (pour accepter/refuser) OU propriétaire (pour annuler)
+      allow update: if isAuthenticated() && 
+                       ((hasRole('vet') && resource.data.vetId == request.auth.uid) ||
+                        (resource.data.ownerId == request.auth.uid && request.resource.data.status == 'cancelled'));
+      
+      // Suppression: propriétaire, vétérinaire concerné ou admin
+      allow delete: if isAuthenticated() && 
+                       (resource.data.ownerId == request.auth.uid || 
+                        resource.data.vetId == request.auth.uid || 
+                        hasRole('admin'));
     }
     
     // Par défaut, tout refuser

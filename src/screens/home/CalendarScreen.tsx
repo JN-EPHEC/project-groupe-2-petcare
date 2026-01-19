@@ -1,13 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { getRemindersByOwnerId } from '../../services/firestoreService';
+import {
+  getRemindersByOwnerId,
+  getVaccinationsByOwnerId,
+  getAppointmentsByOwnerId,
+} from '../../services/firestoreService';
 
 interface CalendarScreenProps {
   navigation: any;
+}
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string;
+  type: 'reminder' | 'vaccination' | 'appointment';
+  status?: string;
+  petName?: string;
+  vetName?: string;
+  time?: string;
+  location?: string;
 }
 
 interface DateInfo {
@@ -16,7 +33,7 @@ interface DateInfo {
   year: number;
   isCurrentMonth: boolean;
   hasReminders: boolean;
-  reminders: any[];
+  reminders: CalendarEvent[];
 }
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) => {
@@ -30,22 +47,101 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const [showAddModal, setShowAddModal] = useState(false);
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderType, setNewReminderType] = useState<'vaccine' | 'vermifuge' | 'checkup' | 'medication'>('vaccine');
-  const [allReminders, setAllReminders] = useState<any[]>([]);
+  const [allReminders, setAllReminders] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadCalendarData = async () => {
+    if (!user?.id) return;
+
+    try {
+      setIsLoading(true);
+      console.log('📅 Chargement des données du calendrier...');
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+
+      // Charger toutes les données en parallèle
+      const [reminders, vaccinations, appointments] = await Promise.all([
+        getRemindersByOwnerId(user.id),
+        getVaccinationsByOwnerId(user.id),
+        getAppointmentsByOwnerId(user.id),
+      ]);
+
+      console.log('✅ Données chargées:', {
+        reminders: reminders.length,
+        vaccinations: vaccinations.length,
+        appointments: appointments.length,
+      });
+
+      const events: CalendarEvent[] = [];
+
+      // Ajouter les rappels
+      reminders.forEach((reminder) => {
+        events.push({
+          id: reminder.id,
+          title: reminder.title,
+          date: reminder.date,
+          type: 'reminder',
+          status: reminder.status,
+        });
+      });
+
+      // Ajouter les vaccinations FUTURES uniquement
+      vaccinations.forEach((vaccination) => {
+        const vaccDate = vaccination.date.split('T')[0]; // Format YYYY-MM-DD
+        if (vaccDate >= todayStr) {
+          events.push({
+            id: vaccination.id,
+            title: `💉 ${vaccination.type}`,
+            date: vaccDate,
+            type: 'vaccination',
+            petName: vaccination.petName,
+            vetName: vaccination.vet,
+          });
+        }
+      });
+
+      // Ajouter les rendez-vous FUTURS (pending ou confirmed)
+      appointments.forEach((appointment) => {
+        const apptDate = appointment.date.split('T')[0]; // Format YYYY-MM-DD
+        if (
+          apptDate >= todayStr &&
+          (appointment.status === 'pending' || appointment.status === 'confirmed')
+        ) {
+          events.push({
+            id: appointment.id,
+            title: `🩺 RDV ${appointment.vetName || 'Vétérinaire'}`,
+            date: apptDate,
+            type: 'appointment',
+            status: appointment.status,
+            petName: appointment.petName,
+            vetName: appointment.vetName,
+            time: appointment.time,
+            location: appointment.location,
+          });
+        }
+      });
+
+      console.log('📊 Total événements calendrier:', events.length);
+      setAllReminders(events);
+    } catch (error) {
+      console.error('❌ Erreur chargement calendrier:', error);
+      setAllReminders([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadReminders = async () => {
-      if (user?.id) {
-        try {
-          const reminders = await getRemindersByOwnerId(user.id);
-          setAllReminders(reminders);
-        } catch (error) {
-          console.error('Error loading reminders:', error);
-          setAllReminders([]);
-        }
-      }
-    };
-    loadReminders();
+    loadCalendarData();
   }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadCalendarData();
+    }, [user?.id])
+  );
 
   // Get month and year
   const currentMonth = currentDate.getMonth();
@@ -202,16 +298,25 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       selectedDate.year === dateInfo.year;
   };
 
-  const getReminderIcon = (type: string) => {
-    switch (type) {
-      case 'vaccine':
-        return { name: 'medical', color: '#4ECDC4' };
-      case 'vermifuge':
-        return { name: 'water', color: '#FF6B6B' };
-      case 'checkup':
-        return { name: 'clipboard', color: '#9B59B6' };
-      case 'medication':
-        return { name: 'medical-outline', color: '#E67E22' };
+  const getReminderIcon = (event: CalendarEvent) => {
+    switch (event.type) {
+      case 'vaccination':
+        return { name: 'medical', color: '#4CAF50' };
+      case 'appointment':
+        return { name: 'calendar', color: '#2196F3' };
+      case 'reminder':
+        switch ((event as any).reminderType || 'vaccine') {
+          case 'vaccine':
+            return { name: 'medical', color: '#4ECDC4' };
+          case 'vermifuge':
+            return { name: 'water', color: '#FF6B6B' };
+          case 'checkup':
+            return { name: 'clipboard', color: '#9B59B6' };
+          case 'medication':
+            return { name: 'medical-outline', color: '#E67E22' };
+          default:
+            return { name: 'notifications', color: colors.teal };
+        }
       default:
         return { name: 'notifications', color: colors.teal };
     }
@@ -310,9 +415,15 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Month/Week Navigation */}
-        <View style={styles.monthNavigation}>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.teal} />
+          <Text style={styles.loadingText}>Chargement du calendrier...</Text>
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Month/Week Navigation */}
+          <View style={styles.monthNavigation}>
           <TouchableOpacity 
             onPress={viewMode === 'month' ? previousMonth : previousWeek} 
             style={styles.navButton}
@@ -430,36 +541,75 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             </Text>
 
             <View style={styles.remindersListContainer}>
-              {selectedDate.reminders.map((reminder) => {
-                const icon = getReminderIcon(reminder.type);
+              {selectedDate.reminders.map((event) => {
+                const icon = getReminderIcon(event);
                 
                 return (
-                  <View key={reminder.id} style={styles.reminderItem}>
+                  <View key={event.id} style={styles.reminderItem}>
                     <View style={[styles.reminderIconContainer, { backgroundColor: icon.color + '20' }]}>
                       <Ionicons name={icon.name as any} size={24} color={icon.color} />
                     </View>
                     
                     <View style={styles.reminderContent}>
-                      <Text style={styles.reminderTitle}>{reminder.title}</Text>
+                      <Text style={styles.reminderTitle}>{event.title}</Text>
+                      
+                      {event.petName && (
+                        <View style={styles.reminderDetail}>
+                          <Ionicons name="paw" size={14} color={colors.teal} />
+                          <Text style={styles.reminderDetailText}>{event.petName}</Text>
+                        </View>
+                      )}
+                      
+                      {event.vetName && (
+                        <View style={styles.reminderDetail}>
+                          <Ionicons name="person" size={14} color={colors.gray} />
+                          <Text style={styles.reminderDetailText}>Dr. {event.vetName}</Text>
+                        </View>
+                      )}
+                      
+                      {event.time && (
+                        <View style={styles.reminderDetail}>
+                          <Ionicons name="time" size={14} color={colors.gray} />
+                          <Text style={styles.reminderDetailText}>{event.time}</Text>
+                        </View>
+                      )}
+                      
+                      {event.location && (
+                        <View style={styles.reminderDetail}>
+                          <Ionicons name="location" size={14} color={colors.gray} />
+                          <Text style={styles.reminderDetailText}>{event.location}</Text>
+                        </View>
+                      )}
+
                       <View style={styles.reminderStatus}>
-                        <Ionicons 
-                          name={reminder.status === 'past' ? 'checkmark-circle' : 'time'} 
-                          size={16} 
-                          color={reminder.status === 'past' ? colors.gray : colors.teal} 
-                        />
-                        <Text style={styles.reminderStatusText}>
-                          {reminder.status === 'past' ? 'Terminé' : 'À venir'}
-                        </Text>
+                        <View style={[styles.eventTypeBadge, { backgroundColor: icon.color }]}>
+                          <Text style={styles.eventTypeText}>
+                            {event.type === 'vaccination' && 'Vaccin'}
+                            {event.type === 'appointment' && 'Rendez-vous'}
+                            {event.type === 'reminder' && 'Rappel'}
+                          </Text>
+                        </View>
+                        {event.status && (
+                          <Text style={styles.reminderStatusText}>
+                            {event.status === 'confirmed' && '✓ Confirmé'}
+                            {event.status === 'pending' && '⏳ En attente'}
+                            {event.status === 'past' && '✓ Terminé'}
+                          </Text>
+                        )}
                       </View>
                     </View>
 
-                    <View style={[styles.reminderBadge, { backgroundColor: icon.color }]}>
-                      <Ionicons 
-                        name={reminder.status === 'past' ? 'checkmark' : 'alarm'} 
-                        size={16} 
-                        color={colors.white} 
-                      />
-                    </View>
+                    <TouchableOpacity
+                      style={styles.moreButton}
+                      onPress={() => {
+                        // Navigation vers le détail
+                        if (event.type === 'appointment') {
+                          navigation.navigate('MyAppointments');
+                        }
+                      }}
+                    >
+                      <Ionicons name="chevron-forward" size={24} color={colors.gray} />
+                    </TouchableOpacity>
                   </View>
                 );
               })}
@@ -483,7 +633,15 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
               <Text style={styles.legendText}>Aujourd'hui</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={styles.legendDot} />
+              <Ionicons name="medical" size={14} color="#4CAF50" />
+              <Text style={styles.legendText}>Vaccins</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <Ionicons name="calendar" size={14} color="#2196F3" />
+              <Text style={styles.legendText}>RDV</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.teal }]} />
               <Text style={styles.legendText}>Rappels</Text>
             </View>
           </View>
@@ -533,8 +691,9 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+      )}
 
       {/* Add Reminder Modal */}
       <Modal
@@ -846,14 +1005,35 @@ const styles = StyleSheet.create({
     color: colors.navy,
     marginBottom: spacing.xs,
   },
+  reminderDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  reminderDetailText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+  },
   reminderStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   reminderStatusText: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.gray,
+  },
+  eventTypeBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  eventTypeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
   },
   reminderBadge: {
     width: 32,
@@ -861,6 +1041,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  moreButton: {
+    padding: spacing.xs,
   },
   noRemindersContainer: {
     alignItems: 'center',
@@ -888,7 +1071,8 @@ const styles = StyleSheet.create({
   },
   legendItems: {
     flexDirection: 'row',
-    gap: spacing.lg,
+    flexWrap: 'wrap',
+    gap: spacing.md,
   },
   legendItem: {
     flexDirection: 'row',
@@ -1042,6 +1226,17 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing.xxl * 3,
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
   },
 });
 

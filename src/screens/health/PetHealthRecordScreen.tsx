@@ -467,7 +467,7 @@ export const PetHealthRecordScreen: React.FC<PetHealthRecordScreenProps> = ({
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.getParent()?.navigate('HomeTab', { screen: 'Home' })}>
             <Ionicons name="arrow-back" size={28} color={colors.navy} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Carnet de santé</Text>
@@ -484,7 +484,7 @@ export const PetHealthRecordScreen: React.FC<PetHealthRecordScreenProps> = ({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.getParent()?.navigate('HomeTab', { screen: 'Home' })}>
           <Ionicons name="arrow-back" size={28} color={colors.navy} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.xl,
-    paddingBottom: spacing.xxl * 3,
+    paddingBottom: spacing.xxl * 5, // Plus d'espace pour voir le bouton flottant
   },
   card: {
     backgroundColor: colors.white,
@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     position: 'absolute',
-    bottom: spacing.xl,
+    bottom: spacing.xxl * 4, // Remonté pour être visible au-dessus de la barre de navigation
     left: spacing.xl,
     right: spacing.xl,
     flexDirection: 'row',

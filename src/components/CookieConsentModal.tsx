@@ -24,6 +24,7 @@ interface CookieConsentModalProps {
   onAcceptAll: (preferences: CookiePreferences) => void;
   onAcceptSelected: (preferences: CookiePreferences) => void;
   onDecline: () => void;
+  navigation?: any; // Pour permettre la navigation vers les politiques
 }
 
 export const CookieConsentModal: React.FC<CookieConsentModalProps> = ({
@@ -31,6 +32,7 @@ export const CookieConsentModal: React.FC<CookieConsentModalProps> = ({
   onAcceptAll,
   onAcceptSelected,
   onDecline,
+  navigation,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [preferences, setPreferences] = useState<CookiePreferences>({
@@ -242,11 +244,17 @@ export const CookieConsentModal: React.FC<CookieConsentModalProps> = ({
 
             {/* Liens vers politique de confidentialité */}
             <View style={styles.linksContainer}>
-              <TouchableOpacity style={styles.link}>
+              <TouchableOpacity 
+                style={styles.link}
+                onPress={() => navigation?.navigate('PrivacyPolicy')}
+              >
                 <Ionicons name="document-text-outline" size={16} color={colors.teal} />
                 <Text style={styles.linkText}>Politique de confidentialité</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.link}>
+              <TouchableOpacity 
+                style={styles.link}
+                onPress={() => navigation?.navigate('CookiePolicy')}
+              >
                 <Ionicons name="shield-outline" size={16} color={colors.teal} />
                 <Text style={styles.linkText}>Politique des cookies</Text>
               </TouchableOpacity>

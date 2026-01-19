@@ -122,6 +122,15 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
           bgColor: '#E0F2F1',
           onPress: () => navigation.navigate('CookieSettings')
         },
+        { 
+          id: 'offline',
+          icon: 'cloud-offline', 
+          title: 'Mode hors ligne', 
+          subtitle: 'Utilisez l\'app sans connexion Internet',
+          color: '#9C27B0',
+          bgColor: '#F3E5F5',
+          onPress: () => navigation.navigate('OfflineMode')
+        },
       ]
     }
   ];
@@ -133,7 +142,7 @@ export const OwnerProfileScreen: React.FC<OwnerProfileScreenProps> = ({ navigati
         <View style={styles.topBar}>
           <TouchableOpacity 
             style={styles.iconButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.getParent()?.navigate('HomeTab', { screen: 'Home' })}
           >
             <Ionicons name="arrow-back" size={24} color={colors.white} />
           </TouchableOpacity>

@@ -20,7 +20,7 @@ import {
   updateAppointment,
   deleteAppointment,
 } from '../../services/firestoreService';
-import { scheduleAppointmentNotification } from '../../services/notificationService';
+import { sendAppointmentStatusNotification } from '../../services/notificationService';
 
 interface ManageAppointmentsScreenProps {
   navigation: any;
@@ -38,7 +38,7 @@ interface Appointment {
   time: string;
   reason: string;
   notes?: string;
-  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
+  status: 'pending' | 'upcoming' | 'rejected' | 'cancelled' | 'completed';
   createdAt: string;
   updatedAt?: string;
   rejectionReason?: string;
@@ -138,22 +138,25 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
       console.log('📅 Confirmation du rendez-vous:', selectedAppointment.id);
       
       await updateAppointment(selectedAppointment.id, {
-        status: 'confirmed',
+        status: 'upcoming',
         confirmedDate,
         confirmedTime,
+        date: confirmedDate,
+        time: confirmedTime,
         updatedAt: new Date().toISOString(),
       });
       
       // Envoyer une notification au propriétaire
       try {
         console.log('🔔 Envoi notification acceptation au propriétaire:', selectedAppointment.ownerId);
-        await scheduleAppointmentNotification(
+        await sendAppointmentStatusNotification(
           selectedAppointment.ownerId,
           'Rendez-vous accepté ✅',
           `Votre rendez-vous pour ${selectedAppointment.petName} a été confirmé le ${confirmedDate} à ${confirmedTime}`,
           {
             type: 'appointment_accepted',
             appointmentId: selectedAppointment.id,
+            petName: selectedAppointment.petName,
             date: confirmedDate,
             time: confirmedTime,
           }
@@ -202,13 +205,14 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
       // Envoyer une notification au propriétaire
       try {
         console.log('🔔 Envoi notification refus au propriétaire:', selectedAppointment.ownerId);
-        await scheduleAppointmentNotification(
+        await sendAppointmentStatusNotification(
           selectedAppointment.ownerId,
           'Rendez-vous refusé ❌',
           `Votre demande de rendez-vous pour ${selectedAppointment.petName} a été refusée. Raison: ${rejectionReason.trim()}`,
           {
             type: 'appointment_rejected',
             appointmentId: selectedAppointment.id,
+            petName: selectedAppointment.petName,
             reason: rejectionReason.trim(),
           }
         );
@@ -250,7 +254,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
     switch (status) {
       case 'pending':
         return '#FFA726';
-      case 'confirmed':
+      case 'upcoming':
         return '#66BB6A';
       case 'rejected':
         return '#EF5350';
@@ -267,7 +271,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
     switch (status) {
       case 'pending':
         return 'En attente';
-      case 'confirmed':
+      case 'upcoming':
         return 'Confirmé';
       case 'rejected':
         return 'Refusé';
@@ -284,7 +288,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
     switch (status) {
       case 'pending':
         return 'time-outline';
-      case 'confirmed':
+      case 'upcoming':
         return 'checkmark-circle';
       case 'rejected':
         return 'close-circle';
@@ -300,7 +304,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
   const renderAppointmentCard = (appointment: Appointment) => {
     const statusColor = getStatusColor(appointment.status);
     const isPending = appointment.status === 'pending';
-    const isConfirmed = appointment.status === 'confirmed';
+    const isUpcoming = appointment.status === 'upcoming';
 
     return (
       <View key={appointment.id} style={styles.appointmentCard}>
@@ -335,7 +339,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
           <View style={styles.dateTimeItem}>
             <Ionicons name="calendar-outline" size={20} color={colors.navy} />
             <Text style={styles.dateTimeText}>
-              {appointment.status === 'confirmed' && appointment.confirmedDate
+              {appointment.status === 'upcoming' && appointment.confirmedDate
                 ? appointment.confirmedDate
                 : appointment.date}
             </Text>
@@ -343,7 +347,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
           <View style={styles.dateTimeItem}>
             <Ionicons name="time-outline" size={20} color={colors.navy} />
             <Text style={styles.dateTimeText}>
-              {appointment.status === 'confirmed' && appointment.confirmedTime
+              {appointment.status === 'upcoming' && appointment.confirmedTime
                 ? appointment.confirmedTime
                 : appointment.time}
             </Text>
@@ -384,7 +388,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
           </View>
         )}
 
-        {isConfirmed && (
+        {isUpcoming && (
           <TouchableOpacity
             style={[styles.actionButton, styles.completeButton]}
             onPress={() => handleCompleteAppointment(appointment.id)}
@@ -459,7 +463,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
               </View>
               <View style={styles.statCard}>
                 <Text style={[styles.statNumber, { color: '#66BB6A' }]}>
-                  {appointments.filter(a => a.status === 'confirmed').length}
+                  {appointments.filter(a => a.status === 'upcoming').length}
                 </Text>
                 <Text style={styles.statLabel}>À venir</Text>
               </View>

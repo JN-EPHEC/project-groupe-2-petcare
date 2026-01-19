@@ -32,4 +32,9 @@ export const colors = {
   
   // Emergency color (rouge vif très visible)
   red: '#FF3B30',
+  
+  // Additional colors
+  orange: '#FFA500',
+  green: '#4CAF50',
+  purple: '#9B59B6',
 };

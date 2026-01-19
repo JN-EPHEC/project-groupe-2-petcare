@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { getPetsByVetId, Pet, getUserById } from '../../services/firestoreService';
+import { getPetsByVetId, Pet, getUserById, getAppointmentsByVetId, Appointment } from '../../services/firestoreService';
 
 interface VetPatientsScreenProps {
   navigation: any;
@@ -13,6 +13,7 @@ interface VetPatientsScreenProps {
 interface PatientWithOwner extends Pet {
   ownerName?: string;
   ownerPhone?: string;
+  upcomingAppointments?: Appointment[];
 }
 
 export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation }) => {
@@ -41,16 +42,36 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
       const pets = await getPetsByVetId(user.id);
       console.log(`📦 Found ${pets.length} pets for this vet`);
       
-      // Enrichir avec les infos du propriétaire
+      // Récupérer tous les rendez-vous du vétérinaire
+      const allAppointments = await getAppointmentsByVetId(user.id);
+      console.log(`📅 Found ${allAppointments.length} appointments for this vet`);
+      
+      // Filtrer les rendez-vous à venir (status 'upcoming' ou 'pending')
+      const upcomingAppointments = allAppointments.filter(apt => 
+        (apt.status === 'upcoming' || apt.status === 'pending') &&
+        new Date(apt.date) >= new Date()
+      );
+      console.log(`📅 ${upcomingAppointments.length} upcoming appointments`);
+      
+      // Enrichir avec les infos du propriétaire et les rendez-vous
       const petsWithOwners = await Promise.all(
         pets.map(async (pet) => {
           try {
             const owner = await getUserById(pet.ownerId);
             console.log(`👤 Loaded owner for pet ${pet.name}: ${owner?.firstName} ${owner?.lastName}`);
+            
+            // Filtrer les rendez-vous de cet animal
+            const petAppointments = upcomingAppointments
+              .filter(apt => apt.petId === pet.id)
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            
+            console.log(`📅 ${pet.name} has ${petAppointments.length} upcoming appointments`);
+            
             return {
               ...pet,
               ownerName: owner ? `${owner.firstName} ${owner.lastName}` : 'Propriétaire inconnu',
               ownerPhone: owner?.phone || '',
+              upcomingAppointments: petAppointments,
             };
           } catch (error) {
             console.error(`❌ Error loading owner for pet ${pet.name}:`, error);
@@ -58,12 +79,13 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
               ...pet,
               ownerName: 'Propriétaire inconnu',
               ownerPhone: '',
+              upcomingAppointments: [],
             };
           }
         })
       );
       
-      console.log(`✅ Loaded ${petsWithOwners.length} patients with owner info`);
+      console.log(`✅ Loaded ${petsWithOwners.length} patients with owner info and appointments`);
       setPatients(petsWithOwners);
     } catch (error) {
       console.error('❌ Error loading patients:', error);
@@ -224,39 +246,57 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
                   )}
                 </View>
 
-                {((patient as any).lastVisit || (patient as any).nextVisit) && (
+                {patient.upcomingAppointments && patient.upcomingAppointments.length > 0 && (
                   <View style={styles.visitsInfo}>
-                    {(patient as any).lastVisit && (
-                      <View style={styles.visitItem}>
-                        <Ionicons name="checkmark-circle" size={14} color="#4ECDC4" />
+                    {patient.upcomingAppointments.slice(0, 2).map((apt, index) => (
+                      <View key={apt.id || index} style={styles.visitItem}>
+                        <Ionicons 
+                          name={apt.status === 'pending' ? "time" : "calendar"} 
+                          size={14} 
+                          color={apt.status === 'pending' ? colors.orange : colors.teal} 
+                        />
                         <Text style={styles.visitText}>
-                          Dernière visite: {new Date((patient as any).lastVisit).toLocaleDateString('fr-FR')}
+                          {apt.status === 'pending' ? 'RDV demandé' : 'RDV confirmé'}: {new Date(apt.date).toLocaleDateString('fr-FR')} à {apt.time}
                         </Text>
                       </View>
-                    )}
-                    {(patient as any).nextVisit && (
-                      <View style={styles.visitItem}>
-                        <Ionicons name="calendar" size={14} color={colors.teal} />
-                        <Text style={styles.visitText}>
-                          Prochain RDV: {new Date((patient as any).nextVisit).toLocaleDateString('fr-FR')}
-                        </Text>
-                      </View>
+                    ))}
+                    {patient.upcomingAppointments.length > 2 && (
+                      <Text style={[styles.visitText, { fontStyle: 'italic', marginLeft: spacing.lg }]}>
+                        +{patient.upcomingAppointments.length - 2} autre(s) RDV
+                      </Text>
                     )}
                   </View>
                 )}
 
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity style={styles.actionButton}>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => navigation.navigate('VetPatientDetail', { 
+                      patient: patient,
+                      patientId: patient.id,
+                      patientName: patient.name 
+                    })}
+                  >
                     <Ionicons name="clipboard" size={18} color={colors.teal} />
                     <Text style={styles.actionText}>Dossier</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Ionicons name="call" size={18} color={colors.teal} />
-                    <Text style={styles.actionText}>Appeler</Text>
+                  <TouchableOpacity 
+                    style={[styles.actionButton, !patient.ownerPhone && styles.actionButtonDisabled]}
+                    disabled={!patient.ownerPhone}
+                  >
+                    <Ionicons name="call" size={18} color={patient.ownerPhone ? colors.teal : colors.gray} />
+                    <Text style={[styles.actionText, !patient.ownerPhone && styles.actionTextDisabled]}>Appeler</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton}>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => navigation.navigate('ManageAppointments', {
+                      initialFilter: patient.id
+                    })}
+                  >
                     <Ionicons name="calendar" size={18} color={colors.teal} />
-                    <Text style={styles.actionText}>RDV</Text>
+                    <Text style={styles.actionText}>
+                      RDV{patient.upcomingAppointments && patient.upcomingAppointments.length > 0 ? ` (${patient.upcomingAppointments.length})` : ''}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -481,10 +521,16 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     paddingVertical: spacing.xs,
   },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
   actionText: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.semiBold,
     color: colors.navy,
+  },
+  actionTextDisabled: {
+    color: colors.gray,
   },
   emptyState: {
     alignItems: 'center',

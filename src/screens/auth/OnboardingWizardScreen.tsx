@@ -581,6 +581,7 @@ export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({ 
         onAcceptAll={handleCookieConsent}
         onAcceptSelected={handleCookieConsent}
         onDecline={handleDeclineCookies}
+        navigation={navigation}
       />
     </KeyboardAvoidingView>
   );

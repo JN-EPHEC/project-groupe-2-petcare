@@ -31,7 +31,7 @@ interface Appointment {
   time: string;
   reason: string;
   notes?: string;
-  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
+  status: 'pending' | 'upcoming' | 'rejected' | 'cancelled' | 'completed';
   createdAt: string;
   updatedAt?: string;
   rejectionReason?: string;
@@ -73,8 +73,8 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
       if (appointmentsList.length > 0) {
         console.log('📋 Statuts des RDV:', appointmentsList.map(a => `${a.id}: ${a.status}`));
         const pending = appointmentsList.filter(a => a.status === 'pending');
-        const confirmed = appointmentsList.filter(a => a.status === 'confirmed');
-        console.log(`   🟠 Pending: ${pending.length}, 🟢 Confirmed: ${confirmed.length}`);
+        const upcoming = appointmentsList.filter(a => a.status === 'upcoming');
+        console.log(`   🟠 Pending: ${pending.length}, 🟢 À venir: ${upcoming.length}`);
       }
       
       // Trier par date (plus récent en premier)
@@ -117,7 +117,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     switch (status) {
       case 'pending':
         return '#FFA726';
-      case 'confirmed':
+      case 'upcoming':
         return '#66BB6A';
       case 'rejected':
         return '#EF5350';
@@ -134,7 +134,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     switch (status) {
       case 'pending':
         return 'En attente';
-      case 'confirmed':
+      case 'upcoming':
         return 'Confirmé';
       case 'rejected':
         return 'Refusé';
@@ -151,7 +151,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     switch (status) {
       case 'pending':
         return 'time-outline';
-      case 'confirmed':
+      case 'upcoming':
         return 'checkmark-circle';
       case 'rejected':
         return 'close-circle';
@@ -204,7 +204,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
           <View style={styles.dateTimeItem}>
             <Ionicons name="calendar-outline" size={20} color={colors.navy} />
             <Text style={styles.dateTimeText}>
-              {appointment.status === 'confirmed' && appointment.confirmedDate
+              {appointment.status === 'upcoming' && appointment.confirmedDate
                 ? appointment.confirmedDate
                 : appointment.date}
             </Text>
@@ -212,7 +212,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
           <View style={styles.dateTimeItem}>
             <Ionicons name="time-outline" size={20} color={colors.navy} />
             <Text style={styles.dateTimeText}>
-              {appointment.status === 'confirmed' && appointment.confirmedTime
+              {appointment.status === 'upcoming' && appointment.confirmedTime
                 ? appointment.confirmedTime
                 : appointment.time}
             </Text>
@@ -255,7 +255,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.getParent()?.navigate('HomeTab', { screen: 'Home' })}>
             <Ionicons name="arrow-back" size={28} color={colors.navy} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Mes rendez-vous</Text>
@@ -273,7 +273,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.getParent()?.navigate('HomeTab', { screen: 'Home' })}>
           <Ionicons name="arrow-back" size={28} color={colors.navy} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mes rendez-vous</Text>
@@ -317,7 +317,7 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
               </View>
               <View style={styles.statCard}>
                 <Text style={[styles.statNumber, { color: '#66BB6A' }]}>
-                  {appointments.filter(a => a.status === 'confirmed').length}
+                  {appointments.filter(a => a.status === 'upcoming').length}
                 </Text>
                 <Text style={styles.statLabel}>Confirmés</Text>
               </View>

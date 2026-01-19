@@ -23,7 +23,7 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, selectPet } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [remindersCount, setRemindersCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,6 +38,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
         getPetsByOwnerId(user.id),
         getRemindersByOwnerId(user.id),
       ]);
+      console.log('🔄 HomeScreen - Chargement des animaux:', userPets.length);
+      userPets.forEach(pet => {
+        console.log(`🐾 ${pet.name} - avatarUrl:`, pet.avatarUrl ? 'OUI ✅' : 'NON ❌');
+      });
       setPets(userPets);
       setRemindersCount(reminders.filter(r => !r.completed).length);
     } catch (error) {
@@ -264,6 +268,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
             <View style={styles.headerActions}>
               <NotificationBell 
                 onPress={() => navigation.navigate('ScheduledNotifications')}
+                iconColor={colors.white}
+                backgroundColor="rgba(255, 255, 255, 0.2)"
               />
               <TouchableOpacity 
                 style={styles.avatarContainer}
@@ -367,13 +373,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
             <View key={pet.id} style={styles.petCardWrapper}>
               <TouchableOpacity 
                 style={styles.petCard}
-                onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'PetProfile' })}
+                onPress={() => {
+                  selectPet(pet);
+                  navigation.getParent()?.navigate('ProfileTab', { screen: 'PetProfile' });
+                }}
                 activeOpacity={0.8}
               >
                 {pet.avatarUrl ? (
                   <Image 
                     source={{ uri: pet.avatarUrl }} 
                     style={styles.petImage}
+                    onError={(error) => {
+                      console.error('❌ Erreur chargement image:', pet.name, error);
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Image chargée:', pet.name, pet.avatarUrl);
+                    }}
                   />
                 ) : (
                   <View style={styles.petEmojiContainer}>
@@ -389,7 +404,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.healthRecordButton}
-                onPress={() => navigation.getParent()?.navigate('ProfileTab', { screen: 'PetHealthRecord', params: { pet } })}
+                onPress={() => {
+                  selectPet(pet);
+                  navigation.getParent()?.navigate('ProfileTab', { screen: 'PetHealthRecord', params: { pet } });
+                }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="medical-outline" size={16} color={colors.teal} />

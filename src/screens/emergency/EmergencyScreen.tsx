@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { PremiumBadge } from '../../components';
-import { getAllVets } from '../../services/firestoreService';
+import { getAllVets, getVetSchedule } from '../../services/firestoreService';
 import * as Location from 'expo-location';
 
 interface EmergencyScreenProps {
@@ -15,6 +15,7 @@ interface EmergencyScreenProps {
 
 interface VetWithDistance extends any {
   calculatedDistance?: number;
+  isOnCallToday?: boolean; // Vétérinaire d'astreinte aujourd'hui
 }
 
 export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, route }) => {
@@ -128,11 +129,17 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
         console.log('⚠️ Impossible d\'obtenir la localisation:', error);
       }
       
-      // Calculer les distances si on a la position
+      // Calculer les distances et vérifier les astreintes du jour
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+      
       const vetsWithDistance: VetWithDistance[] = await Promise.all(
         vetsData.map(async (vet) => {
           let calculatedDistance: number | undefined = undefined;
+          let isOnCallToday = false;
           
+          // Calculer la distance
           if (userCoords && vet.location) {
             const vetCoords = await geocodeAddress(vet.location);
             if (vetCoords) {
@@ -145,19 +152,31 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
             }
           }
           
+          // Vérifier si le vétérinaire est d'astreinte AUJOURD'HUI
+          try {
+            const vetSchedule = await getVetSchedule(vet.id);
+            if (vetSchedule && vetSchedule.onCallDates && vetSchedule.onCallDates.length > 0) {
+              isOnCallToday = vetSchedule.onCallDates.includes(todayStr);
+              console.log(`📅 ${vet.firstName} ${vet.lastName}: Astreinte aujourd'hui? ${isOnCallToday}`);
+            }
+          } catch (error) {
+            console.log(`⚠️ Impossible de charger les horaires pour ${vet.firstName} ${vet.lastName}`);
+          }
+          
           return {
             ...vet,
-            calculatedDistance
+            calculatedDistance,
+            isOnCallToday
           };
         })
       );
       
       // Trier intelligemment selon le mode :
       const sorted = vetsWithDistance.sort((a, b) => {
-        // EN MODE URGENCE : Priorité aux vétérinaires de garde
+        // EN MODE URGENCE : Priorité aux vétérinaires d'astreinte AUJOURD'HUI
         if (isEmergencyMode) {
-          if (a.emergencyAvailable && !b.emergencyAvailable) return -1;
-          if (!a.emergencyAvailable && b.emergencyAvailable) return 1;
+          if (a.isOnCallToday && !b.isOnCallToday) return -1;
+          if (!a.isOnCallToday && b.isOnCallToday) return 1;
         }
         
         // EN MODE NORMAL ou après tri de garde : trier par distance
@@ -175,16 +194,16 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
         return (b.rating || 0) - (a.rating || 0);
       });
       
-      // EN MODE URGENCE : Compter les vétérinaires de garde et gérer le fallback
+      // EN MODE URGENCE : Compter les vétérinaires d'astreinte AUJOURD'HUI et gérer le fallback
       let finalVets = sorted;
       if (isEmergencyMode) {
-        const onDutyVets = sorted.filter(v => v.emergencyAvailable);
-        console.log('🚨 MODE URGENCE - Vétérinaires de garde:', onDutyVets.length);
+        const onDutyVets = sorted.filter(v => v.isOnCallToday);
+        console.log('🚨 MODE URGENCE - Vétérinaires d\'astreinte aujourd\'hui:', onDutyVets.length);
         console.log('📊 Vétérinaires triés total:', sorted.length);
         
-        // Si aucun vétérinaire de garde, afficher tous les vétérinaires de manière aléatoire
+        // Si aucun vétérinaire d'astreinte aujourd'hui, afficher tous les vétérinaires
         if (onDutyVets.length === 0) {
-          console.log('⚠️ Aucun vétérinaire de garde trouvé - affichage aléatoire de tous les vétérinaires');
+          console.log('⚠️ Aucun vétérinaire d\'astreinte aujourd\'hui - affichage de tous');
           console.log('📋 Nombre de vétérinaires à afficher:', sorted.length);
           setNoEmergencyVetsAvailable(true);
           
@@ -192,14 +211,11 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
           const shuffled = [...sorted].sort(() => Math.random() - 0.5);
           console.log('🔀 Vétérinaires mélangés:', shuffled.length);
           
-          // Marquer tous les vétérinaires comme "disponibles en urgence" pour l'affichage
-          finalVets = shuffled.map(vet => ({
-            ...vet,
-            emergencyAvailable: true // Force l'affichage comme "disponible"
-          }));
-          console.log('✅ Vétérinaires forcés comme disponibles:', finalVets.length);
+          // Ne PAS forcer isOnCallToday = true car le badge ne doit s'afficher QUE pour les vraies astreintes
+          finalVets = shuffled;
+          console.log('✅ Tous les vétérinaires affichés (sans badge de garde):', finalVets.length);
         } else {
-          console.log('✅ Vétérinaires de garde trouvés - affichage normal');
+          console.log('✅ Vétérinaires d\'astreinte aujourd\'hui trouvés - affichage normal');
           setNoEmergencyVetsAvailable(false);
         }
       } else {
@@ -308,7 +324,7 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
           <Text style={styles.onDutyText}>
             {noEmergencyVetsAvailable 
               ? `${allVets.length} vétérinaire(s) disponible(s) pour urgence`
-              : `${allVets.filter(v => v.emergencyAvailable).length} vétérinaire(s) de garde disponible(s)`
+              : `${allVets.filter(v => v.isOnCallToday).length} vétérinaire(s) de garde aujourd'hui`
             }
           </Text>
         </View>
@@ -342,7 +358,7 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
               key={vet.id} 
               style={[
                 styles.vetCard,
-                isEmergencyMode && vet.emergencyAvailable && styles.vetCardOnDuty
+                vet.isOnCallToday && styles.vetCardOnDuty
               ]}
               onPress={() => navigation.navigate('VetDetails', { vet })}
               activeOpacity={0.7}
@@ -366,7 +382,7 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
                   {vet.isPremiumPartner && (
                     <PremiumBadge size="small" showText={false} />
                   )}
-                  {isEmergencyMode && vet.emergencyAvailable && (
+                  {vet.isOnCallToday && (
                     <View style={styles.onDutyBadge}>
                       <Ionicons name="medical" size={12} color={colors.white} />
                       <Text style={styles.onDutyBadgeText}>DE GARDE</Text>
@@ -412,7 +428,7 @@ export const EmergencyScreen: React.FC<EmergencyScreenProps> = ({ navigation, ro
                   style={[
                     styles.actionButton,
                     styles.callButton,
-                    isEmergencyMode && vet.emergencyAvailable && styles.callButtonOnDuty
+                    vet.isOnCallToday && styles.callButtonOnDuty
                   ]}
                   onPress={(e) => {
                     e.stopPropagation();

@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { updatePet, getPetsByOwnerId, Pet } from '../../services/firestoreService';
+import { updatePet, getPetsByOwnerId, Pet, getVetSchedule, VetSchedule } from '../../services/firestoreService';
 import { PremiumBadge } from '../../components';
 
 interface VetDetailsScreenProps {
@@ -26,6 +26,8 @@ export const VetDetailsScreen: React.FC<VetDetailsScreenProps> = ({ navigation, 
   const [selectedPets, setSelectedPets] = useState<string[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
   const [isLoadingPets, setIsLoadingPets] = useState(true);
+  const [vetSchedule, setVetSchedule] = useState<VetSchedule | null>(null);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
 
   // Charger les animaux du propriétaire
   const loadPets = React.useCallback(async () => {
@@ -49,12 +51,35 @@ export const VetDetailsScreen: React.FC<VetDetailsScreenProps> = ({ navigation, 
     }
   }, [user?.id, user?.role, user?.email]);
 
+  // Charger les horaires du vétérinaire
+  const loadVetSchedule = React.useCallback(async () => {
+    if (!vet?.id) {
+      console.log('⚠️ Pas d\'ID vétérinaire');
+      setIsLoadingSchedule(false);
+      return;
+    }
+
+    try {
+      console.log('📅 Chargement des horaires pour le vétérinaire:', vet.id);
+      setIsLoadingSchedule(true);
+      const schedule = await getVetSchedule(vet.id);
+      console.log('✅ Horaires chargés:', schedule);
+      setVetSchedule(schedule);
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement des horaires:', error);
+      setVetSchedule(null);
+    } finally {
+      setIsLoadingSchedule(false);
+    }
+  }, [vet?.id]);
+
   // Charger les animaux au montage et quand on revient sur l'écran
   useFocusEffect(
     React.useCallback(() => {
       console.log('🔄 VetDetailsScreen: Focus - Chargement des animaux...');
       loadPets();
-    }, [loadPets])
+      loadVetSchedule();
+    }, [loadPets, loadVetSchedule])
   );
 
   useEffect(() => {
@@ -76,6 +101,72 @@ export const VetDetailsScreen: React.FC<VetDetailsScreenProps> = ({ navigation, 
         ? prev.filter(id => id !== petId)
         : [...prev, petId]
     );
+  };
+
+  // Formater les horaires pour l'affichage
+  const formatSchedule = () => {
+    if (!vetSchedule) return 'Non renseigné';
+
+    const dayNames: { [key: string]: string } = {
+      monday: 'Lun',
+      tuesday: 'Mar',
+      wednesday: 'Mer',
+      thursday: 'Jeu',
+      friday: 'Ven',
+      saturday: 'Sam',
+      sunday: 'Dim',
+    };
+
+    const enabledDays = Object.keys(dayNames).filter(
+      (day) => vetSchedule[day as keyof VetSchedule]?.enabled
+    );
+
+    if (enabledDays.length === 0) return 'Fermé';
+
+    // Grouper les jours consécutifs avec les mêmes horaires
+    const schedule: string[] = [];
+    let currentGroup: string[] = [];
+    let currentHours = '';
+
+    enabledDays.forEach((day, index) => {
+      const daySchedule = vetSchedule[day as keyof VetSchedule] as any;
+      const hours = `${daySchedule.start}-${daySchedule.end}`;
+
+      if (hours === currentHours) {
+        currentGroup.push(dayNames[day]);
+      } else {
+        if (currentGroup.length > 0) {
+          const groupStr = currentGroup.length > 1 
+            ? `${currentGroup[0]}-${currentGroup[currentGroup.length - 1]}`
+            : currentGroup[0];
+          schedule.push(`${groupStr}: ${currentHours}`);
+        }
+        currentGroup = [dayNames[day]];
+        currentHours = hours;
+      }
+
+      if (index === enabledDays.length - 1) {
+        const groupStr = currentGroup.length > 1 
+          ? `${currentGroup[0]}-${currentGroup[currentGroup.length - 1]}`
+          : currentGroup[0];
+        schedule.push(`${groupStr}: ${currentHours}`);
+      }
+    });
+
+    return schedule.join(', ');
+  };
+
+  // Compter les dates d'astreinte futures
+  const getUpcomingOnCallCount = () => {
+    if (!vetSchedule?.onCallDates || vetSchedule.onCallDates.length === 0) return 0;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return vetSchedule.onCallDates.filter(dateStr => {
+      const date = new Date(dateStr);
+      return date >= today;
+    }).length;
   };
 
   const handleAssignVet = async () => {
@@ -247,24 +338,81 @@ export const VetDetailsScreen: React.FC<VetDetailsScreenProps> = ({ navigation, 
       {/* Tarifs & Horaires */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Tarifs & Disponibilité</Text>
-        <View style={styles.infoCard}>
-          {vet.consultationRate && (
-            <View style={styles.infoRow}>
-              <Ionicons name="cash" size={20} color={colors.teal} />
-              <Text style={styles.infoText}>Consultation: {vet.consultationRate}</Text>
-            </View>
-          )}
-          <View style={styles.infoRow}>
-            <Ionicons name="time" size={20} color={colors.teal} />
-            <Text style={styles.infoText}>Lun-Ven: 9h-18h, Sam: 9h-12h</Text>
+        {isLoadingSchedule ? (
+          <View style={styles.infoCard}>
+            <ActivityIndicator size="small" color={colors.teal} />
+            <Text style={styles.loadingText}>Chargement des horaires...</Text>
           </View>
-          {vet.emergencyAvailable && (
+        ) : (
+          <View style={styles.infoCard}>
+            {/* Prix de consultation */}
+            {(vet.consultationRate || vetSchedule?.consultationRate) && (
+              <View style={styles.infoRow}>
+                <Ionicons name="cash" size={20} color={colors.teal} />
+                <Text style={styles.infoText}>
+                  Consultation: {vetSchedule?.consultationRate || vet.consultationRate}€
+                </Text>
+              </View>
+            )}
+
+            {/* Durée des consultations */}
+            {vetSchedule?.appointmentDuration && (
+              <View style={styles.infoRow}>
+                <Ionicons name="hourglass" size={20} color={colors.teal} />
+                <Text style={styles.infoText}>
+                  Durée: {vetSchedule.appointmentDuration === 60 ? '1 heure' : `${vetSchedule.appointmentDuration} min`}
+                </Text>
+              </View>
+            )}
+
+            {/* Horaires d'ouverture */}
             <View style={styles.infoRow}>
-              <Ionicons name="alert-circle" size={20} color="#4ECDC4" />
-              <Text style={[styles.infoText, styles.emergencyText]}>Urgences disponibles 24/7</Text>
+              <Ionicons name="time" size={20} color={colors.teal} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoText}>{formatSchedule()}</Text>
+              </View>
             </View>
-          )}
-        </View>
+
+            {/* Astreintes de nuit */}
+            {vetSchedule?.onCallDates && vetSchedule.onCallDates.length > 0 && (
+              <View style={styles.infoRow}>
+                <Ionicons name="moon" size={20} color="#FFB347" />
+                <Text style={styles.infoText}>
+                  {getUpcomingOnCallCount()} nuit{getUpcomingOnCallCount() > 1 ? 's' : ''} d'astreinte à venir
+                </Text>
+              </View>
+            )}
+
+            {/* Nouveaux patients */}
+            {vetSchedule?.acceptNewPatients !== undefined && (
+              <View style={styles.infoRow}>
+                <Ionicons 
+                  name={vetSchedule.acceptNewPatients ? "checkmark-circle" : "close-circle"} 
+                  size={20} 
+                  color={vetSchedule.acceptNewPatients ? "#4CAF50" : "#FF6B6B"} 
+                />
+                <Text style={[
+                  styles.infoText,
+                  vetSchedule.acceptNewPatients ? styles.acceptingText : styles.notAcceptingText
+                ]}>
+                  {vetSchedule.acceptNewPatients 
+                    ? 'Accepte de nouveaux patients' 
+                    : 'N\'accepte pas de nouveaux patients'}
+                </Text>
+              </View>
+            )}
+
+            {/* Urgences (si disponible dans le profil) */}
+            {vet.emergencyAvailable && (
+              <View style={styles.infoRow}>
+                <Ionicons name="alert-circle" size={20} color="#FF9800" />
+                <Text style={[styles.infoText, styles.emergencyText]}>
+                  Urgences disponibles 24/7
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Assign to Pets */}
@@ -476,7 +624,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   emergencyText: {
-    color: '#4ECDC4',
+    color: '#FF9800',
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  loadingText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  acceptingText: {
+    color: '#4CAF50',
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  notAcceptingText: {
+    color: '#FF6B6B',
     fontWeight: typography.fontWeight.semiBold,
   },
   petsContainer: {

@@ -26,6 +26,7 @@ import {
   OwnerProfileScreen, 
   PetProfileScreen,
   NotificationsScreen,
+  OwnerNotificationsScreen,
   EditProfileScreen,
   PreferencesScreen,
   AddPetScreen,
@@ -87,7 +88,10 @@ import {
   EditVetProfileScreen,
   VetAppointmentsScreen,
   VetPatientsScreen,
+  VetPatientDetailScreen,
   VetScheduleScreen,
+  VetAssignmentRequestsScreen,
+  VetNotificationsScreen,
 } from '../screens/vet';
 
 // Appointment Screens
@@ -150,7 +154,7 @@ const ProfileStack = () => {
       <Stack.Screen name="EditTreatment" component={EditTreatmentScreen} />
       <Stack.Screen name="AddMedicalHistory" component={AddMedicalHistoryScreen} />
       <Stack.Screen name="EditMedicalHistory" component={EditMedicalHistoryScreen} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="Notifications" component={OwnerNotificationsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="Preferences" component={PreferencesScreen} />
       <Stack.Screen name="Vaccinations" component={VaccinationsScreen} />
@@ -214,7 +218,10 @@ const VetDashboardStack = () => {
       <Stack.Screen name="VetAppointments" component={VetAppointmentsScreen} />
       <Stack.Screen name="ManageAppointments" component={ManageAppointmentsScreen} />
       <Stack.Screen name="VetPatients" component={VetPatientsScreen} />
+      <Stack.Screen name="VetPatientDetail" component={VetPatientDetailScreen} />
       <Stack.Screen name="VetSchedule" component={VetScheduleScreen} />
+      <Stack.Screen name="VetAssignmentRequests" component={VetAssignmentRequestsScreen} />
+      <Stack.Screen name="VetNotifications" component={VetNotificationsScreen} />
       <Stack.Screen name="VetProfile" component={VetProfileScreen} />
       <Stack.Screen name="EditVetProfile" component={EditVetProfileScreen} options={{ title: 'Modifier le profil' }} />
       <Stack.Screen name="CookieSettings" component={CookieSettingsScreen} />
@@ -242,6 +249,7 @@ const VetPatientsStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="VetPatientsList" component={VetPatientsScreen} />
+      <Stack.Screen name="VetPatientDetail" component={VetPatientDetailScreen} />
     </Stack.Navigator>
   );
 };
@@ -254,6 +262,7 @@ const VetProfileStack = () => {
       <Stack.Screen name="EditVetProfile" component={EditVetProfileScreen} options={{ title: 'Modifier le profil' }} />
       <Stack.Screen name="ManageAppointments" component={ManageAppointmentsScreen} />
       <Stack.Screen name="VetSchedule" component={VetScheduleScreen} />
+      <Stack.Screen name="VetNotifications" component={VetNotificationsScreen} />
       <Stack.Screen name="CookieSettings" component={CookieSettingsScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       <Stack.Screen name="CookiePolicy" component={CookiePolicyScreen} />
@@ -398,6 +407,8 @@ const RootNavigator = () => {
       <Stack.Screen name="SharedPetProfile" component={SharedPetProfileScreen} />
       <Stack.Screen name="PaymentProcessing" component={PaymentProcessingScreen} />
       <Stack.Screen name="PremiumSuccess" component={PremiumSuccessScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="CookiePolicy" component={CookiePolicyScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
     </Stack.Navigator>
   );

@@ -272,6 +272,7 @@ export const VetOnboardingScreen: React.FC<VetOnboardingScreenProps> = ({ naviga
         onAcceptAll={handleCookieConsent}
         onAcceptSelected={handleCookieConsent}
         onDecline={handleDeclineCookies}
+        navigation={navigation}
       />
     </KeyboardAvoidingView>
   );

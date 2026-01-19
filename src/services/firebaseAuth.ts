@@ -411,6 +411,46 @@ const deleteUserData = async (userId: string): Promise<void> => {
       }
     }
     
+    // 3b. Supprimer tous les traitements AVANT de supprimer les pets
+    for (const petId of petIds) {
+      console.log(`🗑️ Deleting treatments for pet: ${petId}`);
+      const treatmentsQuery = query(collection(db, 'treatments'), where('petId', '==', petId));
+      const treatmentsSnapshot = await getDocs(treatmentsQuery);
+      for (const tDoc of treatmentsSnapshot.docs) {
+        await deleteDoc(tDoc.ref);
+      }
+    }
+    
+    // 3c. Supprimer tous les antécédents médicaux AVANT de supprimer les pets
+    for (const petId of petIds) {
+      console.log(`🗑️ Deleting medical history for pet: ${petId}`);
+      const medicalHistoryQuery = query(collection(db, 'medicalHistory'), where('petId', '==', petId));
+      const medicalHistorySnapshot = await getDocs(medicalHistoryQuery);
+      for (const mhDoc of medicalHistorySnapshot.docs) {
+        await deleteDoc(mhDoc.ref);
+      }
+    }
+    
+    // 3d. Supprimer tous les suivis de bien-être AVANT de supprimer les pets
+    for (const petId of petIds) {
+      console.log(`🗑️ Deleting wellness tracking for pet: ${petId}`);
+      const wellnessQuery = query(collection(db, 'wellnessTracking'), where('petId', '==', petId));
+      const wellnessSnapshot = await getDocs(wellnessQuery);
+      for (const wDoc of wellnessSnapshot.docs) {
+        await deleteDoc(wDoc.ref);
+      }
+    }
+    
+    // 3e. Supprimer toutes les alertes de bien-être AVANT de supprimer les pets
+    for (const petId of petIds) {
+      console.log(`🗑️ Deleting wellness alerts for pet: ${petId}`);
+      const alertsQuery = query(collection(db, 'wellnessAlerts'), where('petId', '==', petId));
+      const alertsSnapshot = await getDocs(alertsQuery);
+      for (const aDoc of alertsSnapshot.docs) {
+        await deleteDoc(aDoc.ref);
+      }
+    }
+    
     // 4. Supprimer tous les documents AVANT de supprimer les pets
     for (const petId of petIds) {
       console.log(`🗑️ Deleting documents for pet: ${petId}`);
@@ -461,7 +501,23 @@ const deleteUserData = async (userId: string): Promise<void> => {
       await deleteDoc(vrDoc.ref);
     }
     
-    // 10. Supprimer le document utilisateur
+    // 10. Supprimer les abonnements premium de l'utilisateur
+    console.log(`🗑️ Deleting subscriptions`);
+    const subscriptionsQuery = query(collection(db, 'subscriptions'), where('userId', '==', userId));
+    const subscriptionsSnapshot = await getDocs(subscriptionsQuery);
+    for (const sDoc of subscriptionsSnapshot.docs) {
+      await deleteDoc(sDoc.ref);
+    }
+    
+    // 11. Supprimer les notifications de l'utilisateur
+    console.log(`🗑️ Deleting notifications`);
+    const notificationsQuery = query(collection(db, 'notifications'), where('userId', '==', userId));
+    const notificationsSnapshot = await getDocs(notificationsQuery);
+    for (const nDoc of notificationsSnapshot.docs) {
+      await deleteDoc(nDoc.ref);
+    }
+    
+    // 12. Supprimer le document utilisateur
     console.log(`🗑️ Deleting user document`);
     await deleteDoc(doc(db, 'users', userId));
     

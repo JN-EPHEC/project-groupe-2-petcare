@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { getAppointmentsByVetId, getPatientsByVetId } from '../../services/firestoreService';
+import { getAppointmentsByVetId, getPetsByVetId, getPendingAssignmentRequestsByVetId } from '../../services/firestoreService';
 import { NotificationBell } from '../../components';
 
 interface VetDashboardScreenProps {
@@ -16,35 +17,110 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
   const { user } = useAuth();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
+  const [pendingRequests, setPendingRequests] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, [user]);
 
+  // Recharger les données quand l'écran est focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.role === 'vet') {
+        loadData();
+      }
+    }, [user])
+  );
+
   const loadData = async () => {
     if (!user || user.role !== 'vet') return;
     
     setIsLoading(true);
     try {
-      const [appointmentsData, patientsData] = await Promise.all([
+      console.log('🏥 [VetDashboard] Chargement des données pour le vétérinaire:', user.id);
+      
+      const [appointmentsData, patientsData, assignmentRequests] = await Promise.all([
         getAppointmentsByVetId(user.id),
-        getPatientsByVetId(user.id),
+        getPetsByVetId(user.id),
+        getPendingAssignmentRequestsByVetId(user.id),
       ]);
+      
+      console.log('📅 [VetDashboard] Rendez-vous chargés:', appointmentsData.length);
+      console.log('🐾 [VetDashboard] Patients chargés:', patientsData.length);
+      console.log('📝 [VetDashboard] Demandes d\'assignation en attente:', assignmentRequests.length);
+      
       setAppointments(appointmentsData);
+      setPendingRequests(assignmentRequests.length);
       setPatients(patientsData);
     } catch (error) {
-      console.error('Error loading vet dashboard data:', error);
+      console.error('❌ [VetDashboard] Erreur chargement données:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   // Calculate stats from real data
-  const today = new Date().toISOString().split('T')[0];
-  const todayAppointments = appointments.filter(apt => 
-    apt.date === today && (apt.status === 'confirmed' || apt.status === 'upcoming')
-  );
+  const today = new Date();
+  const todayDateString = today.toISOString().split('T')[0]; // Format: "2026-01-17"
+  
+  // Fonction pour vérifier si une date est aujourd'hui
+  const isToday = (dateString: string) => {
+    if (!dateString) return false;
+    // Normaliser la date pour comparaison
+    const aptDateString = dateString.split('T')[0];
+    return aptDateString === todayDateString;
+  };
+  
+  // Fonction pour obtenir le lundi de cette semaine (début de semaine)
+  const getMonday = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 = dimanche, 1 = lundi, ..., 6 = samedi
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Si dimanche, recule de 6 jours
+    return new Date(d.setDate(diff));
+  };
+  
+  // Fonction pour obtenir le dimanche de cette semaine (fin de semaine)
+  const getSunday = (date: Date) => {
+    const monday = getMonday(date);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6); // Lundi + 6 jours = Dimanche
+    return sunday;
+  };
+  
+  // Dates de la semaine en cours
+  const weekStart = getMonday(today);
+  const weekEnd = getSunday(today);
+  const weekStartString = weekStart.toISOString().split('T')[0];
+  const weekEndString = weekEnd.toISOString().split('T')[0];
+  
+  // Fonction pour vérifier si une date est dans la semaine en cours
+  const isThisWeek = (dateString: string) => {
+    if (!dateString) return false;
+    const aptDateString = dateString.split('T')[0];
+    return aptDateString >= weekStartString && aptDateString <= weekEndString;
+  };
+  
+  // Rendez-vous du jour (tous statuts sauf cancelled et rejected)
+  const todayAppointments = appointments.filter(apt => {
+    const isTodayDate = isToday(apt.date);
+    const isValidStatus = apt.status !== 'cancelled' && apt.status !== 'rejected';
+    return isTodayDate && isValidStatus;
+  });
+  
+  // Rendez-vous de la semaine en cours (lundi au dimanche, tous statuts sauf cancelled et rejected)
+  const thisWeekAppointments = appointments.filter(apt => {
+    const isWeekDate = isThisWeek(apt.date);
+    const isValidStatus = apt.status !== 'cancelled' && apt.status !== 'rejected';
+    return isWeekDate && isValidStatus;
+  });
+  
+  console.log('📊 [VetDashboard] Stats:');
+  console.log('  - Rendez-vous aujourd\'hui:', todayAppointments.length, '/', appointments.filter(apt => isToday(apt.date)).length, 'total pour aujourd\'hui');
+  console.log('  - Détail:', todayAppointments.map(apt => `${apt.time} - ${apt.petName} (${apt.status})`));
+  console.log('  - Semaine en cours: du', weekStartString, 'au', weekEndString);
+  console.log('  - Rendez-vous cette semaine:', thisWeekAppointments.length, '/', appointments.filter(apt => isThisWeek(apt.date)).length, 'total pour cette semaine');
+  
   const pendingAppointments = appointments.filter(apt => 
     apt.status === 'pending'
   );
@@ -56,15 +132,10 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
     todayAppointments: todayAppointments.length,
     pendingAppointments: pendingAppointments.length,
     totalPatients: patients.length,
-    consultationsThisWeek: appointments.filter(apt => {
-      const aptDate = new Date(apt.date);
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return aptDate >= weekAgo && apt.status === 'completed';
-    }).length,
+    consultationsThisWeek: thisWeekAppointments.length,
   };
 
-  const pendingRequests = pendingAppointments.slice(0, 3); // Show first 3
+  const pendingAppointmentsToShow = pendingAppointments.slice(0, 3); // Show first 3
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -99,6 +170,8 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
         <View style={styles.headerActions}>
           <NotificationBell 
             onPress={() => navigation.navigate('ScheduledNotifications')}
+            iconColor={colors.teal}
+            backgroundColor={colors.lightBlue}
           />
           <TouchableOpacity 
             style={styles.profileButton}
@@ -120,29 +193,45 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
 
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
-        <View style={[styles.statCard, { backgroundColor: '#4ECDC4' }]}>
+        <TouchableOpacity 
+          style={[styles.statCard, { backgroundColor: '#4ECDC4' }]}
+          onPress={() => navigation.navigate('VetAppointments')}
+          activeOpacity={0.8}
+        >
           <Ionicons name="calendar-outline" size={28} color={colors.white} />
           <Text style={styles.statNumber}>{stats.todayAppointments}</Text>
           <Text style={styles.statLabel}>RDV aujourd'hui</Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.statCard, { backgroundColor: '#FFB347' }]}>
+        <TouchableOpacity 
+          style={[styles.statCard, { backgroundColor: '#FFB347' }]}
+          onPress={() => navigation.navigate('ManageAppointments')}
+          activeOpacity={0.8}
+        >
           <Ionicons name="time-outline" size={28} color={colors.white} />
           <Text style={styles.statNumber}>{stats.pendingAppointments}</Text>
           <Text style={styles.statLabel}>En attente</Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.statCard, { backgroundColor: '#9B59B6' }]}>
+        <TouchableOpacity 
+          style={[styles.statCard, { backgroundColor: '#9B59B6' }]}
+          onPress={() => navigation.navigate('VetPatients')}
+          activeOpacity={0.8}
+        >
           <Ionicons name="paw-outline" size={28} color={colors.white} />
           <Text style={styles.statNumber}>{stats.totalPatients}</Text>
           <Text style={styles.statLabel}>Patients</Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.statCard, { backgroundColor: '#5eb3b3' }]}>
+        <TouchableOpacity 
+          style={[styles.statCard, { backgroundColor: '#5eb3b3' }]}
+          onPress={() => navigation.navigate('VetAppointments')}
+          activeOpacity={0.8}
+        >
           <Ionicons name="clipboard-outline" size={28} color={colors.white} />
           <Text style={styles.statNumber}>{stats.consultationsThisWeek}</Text>
           <Text style={styles.statLabel}>Cette semaine</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Quick Actions */}
@@ -181,6 +270,21 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
 
           <TouchableOpacity 
             style={styles.actionCard}
+            onPress={() => navigation.navigate('VetAssignmentRequests')}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: '#FFA50020' }]}>
+              <Ionicons name="heart-circle" size={32} color="#FFA500" />
+              {pendingRequests > 0 && (
+                <View style={styles.requestBadge}>
+                  <Text style={styles.requestBadgeText}>{pendingRequests}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.actionText}>Demandes</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
             onPress={() => navigation.navigate('VetProfile')}
           >
             <View style={[styles.actionIcon, { backgroundColor: '#5eb3b320' }]}>
@@ -189,50 +293,6 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
             <Text style={styles.actionText}>Profil</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-      {/* Today's Appointments */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Rendez-vous du jour</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('VetAppointments')}>
-            <Text style={styles.seeAllText}>Voir tout</Text>
-          </TouchableOpacity>
-        </View>
-
-        {todayAppointments.length > 0 ? (
-          todayAppointments.map((appointment) => (
-            <TouchableOpacity key={appointment.id} style={styles.appointmentCard}>
-              <View style={styles.appointmentTime}>
-                <Ionicons name="time" size={20} color={colors.teal} />
-                <Text style={styles.timeText}>{appointment.time}</Text>
-              </View>
-
-              <View style={styles.appointmentInfo}>
-                <Text style={styles.petName}>🐾 {appointment.petName}</Text>
-                <Text style={styles.ownerName}>Propriétaire: {appointment.ownerName}</Text>
-                <View style={styles.appointmentMeta}>
-                  <View style={[styles.typeBadge, { backgroundColor: colors.lightBlue }]}>
-                    <Text style={styles.typeBadgeText}>{appointment.type}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
-                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(appointment.status) }]} />
-                    <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-                      {appointment.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <Ionicons name="chevron-forward" size={24} color={colors.gray} />
-            </TouchableOpacity>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={48} color={colors.gray} />
-            <Text style={styles.emptyStateText}>Aucun rendez-vous aujourd'hui</Text>
-          </View>
-        )}
       </View>
 
       {/* Pending Requests */}
@@ -249,8 +309,8 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
           </View>
         </View>
 
-        {pendingRequests.length > 0 ? (
-          pendingRequests.map((request) => (
+        {pendingAppointmentsToShow.length > 0 ? (
+          pendingAppointmentsToShow.map((request) => (
             <TouchableOpacity 
               key={request.id} 
               style={styles.requestCard}
@@ -420,6 +480,26 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  requestBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.red,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  requestBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: typography.fontWeight.bold,
   },
   actionText: {
     fontSize: typography.fontSize.md,

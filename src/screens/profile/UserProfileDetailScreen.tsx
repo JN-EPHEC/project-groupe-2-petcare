@@ -12,7 +12,7 @@ interface UserProfileDetailScreenProps {
 
 export const UserProfileDetailScreen: React.FC<UserProfileDetailScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const { user, currentPet, signOut } = useAuth();
+  const { user, pets, signOut } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -30,16 +30,28 @@ export const UserProfileDetailScreen: React.FC<UserProfileDetailScreenProps> = (
     try {
       setIsDeleting(true);
       
-      // Supprimer le compte
+      console.log('🗑️ Début de la suppression du compte...');
+      
+      // Supprimer le compte (supprime Auth + toutes les données Firestore)
       await deleteUserAccount(deletePassword);
+      
+      console.log('✅ Compte supprimé avec succès');
       
       // Fermer la modal
       setShowDeleteModal(false);
+      setDeletePassword('');
+      
+      // Déconnecter explicitement (au cas où)
+      try {
+        await signOut();
+      } catch (e) {
+        console.log('Déconnexion déjà effectuée');
+      }
       
       // Afficher un message de succès
       Alert.alert(
-        'Compte supprimé',
-        'Votre compte et toutes vos données ont été supprimés avec succès.',
+        '✅ Compte supprimé',
+        'Votre compte et toutes vos données ont été définitivement supprimés.\n\nVous allez être redirigé vers la page de connexion.',
         [
           {
             text: 'OK',
@@ -51,15 +63,15 @@ export const UserProfileDetailScreen: React.FC<UserProfileDetailScreenProps> = (
               });
             }
           }
-        ]
+        ],
+        { cancelable: false }
       );
     } catch (error: any) {
-      console.error('Error deleting account:', error);
+      console.error('❌ Erreur suppression compte:', error);
       Alert.alert(
         'Erreur',
         error.message || 'Impossible de supprimer le compte. Veuillez réessayer.'
       );
-    } finally {
       setIsDeleting(false);
     }
   };
@@ -69,7 +81,7 @@ export const UserProfileDetailScreen: React.FC<UserProfileDetailScreenProps> = (
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.getParent()?.navigate('HomeTab', { screen: 'Home' })}
         >
           <Ionicons name="arrow-back" size={30} color={colors.navy} />
         </TouchableOpacity>
@@ -114,17 +126,39 @@ export const UserProfileDetailScreen: React.FC<UserProfileDetailScreenProps> = (
         <Text style={styles.sectionTitle}>{t('profile.profile')}</Text>
 
         <Text style={styles.bio}>
-          {t('profile.userProfile.bio', { petName: currentPet?.name || 'kitty' })}
+          {pets && pets.length > 0 
+            ? `Fier parent de ${pets.map(p => p.name).join(', ')}\nMa vie tourne autour de petits ronrons et de grandes aventures avec ${pets.length > 1 ? 'mes compagnons' : 'mon compagnon'}, expert${pets.length > 1 ? 's' : ''} en câlins et en chaos adorable. Entre une sieste partagée et des sessions de jeux endiablées, j'essaie de survivre à ${pets.length > 1 ? 'leur' : 'son'} charme irrésistible... et j'adore ça !`
+            : t('profile.userProfile.bio', { petName: 'votre compagnon' })}
         </Text>
 
-        <View style={styles.petSection}>
-          <View style={styles.petImageContainer}>
-            <View style={styles.petImagePlaceholder}>
-              <Ionicons name="paw" size={50} color={colors.navy} />
-            </View>
+        {/* Mes Animaux */}
+        {pets && pets.length > 0 && (
+          <View style={styles.petsContainer}>
+            <Text style={styles.petsTitle}>
+              🐾 {pets.length > 1 ? 'Mes animaux' : 'Mon animal'}
+            </Text>
+            {pets.map((pet) => (
+              <View key={pet.id} style={styles.petSection}>
+                <View style={styles.petImageContainer}>
+                  {pet.avatarUrl ? (
+                    <Image 
+                      source={{ uri: pet.avatarUrl }} 
+                      style={styles.petImage}
+                    />
+                  ) : (
+                    <View style={styles.petImagePlaceholder}>
+                      <Text style={styles.petEmoji}>{pet.emoji || '🐾'}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.petInfo}>
+                  <Text style={styles.petName}>{pet.name}</Text>
+                  <Text style={styles.petBreed}>{pet.breed}</Text>
+                </View>
+              </View>
+            ))}
           </View>
-          <Text style={styles.petName}>{currentPet?.name || 'kitty'}</Text>
-        </View>
+        )}
 
         <View style={styles.contactSection}>
           <Text style={styles.contactLabel}>{t('profile.emailLabel')}</Text>
@@ -309,13 +343,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: spacing.xl,
   },
+  petsContainer: {
+    marginBottom: spacing.xl,
+  },
+  petsTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    marginBottom: spacing.md,
+  },
   petSection: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
     borderRadius: borderRadius.xl,
     padding: spacing.md,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -326,20 +369,36 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   petImageContainer: {
-    marginRight: spacing.lg,
+    marginRight: spacing.md,
+  },
+  petImage: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.lg,
   },
   petImagePlaceholder: {
-    width: 120,
+    width: 80,
     height: 80,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.lightGray,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  petEmoji: {
+    fontSize: 40,
+  },
+  petInfo: {
+    flex: 1,
+  },
   petName: {
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.navy,
+    marginBottom: spacing.xs,
+  },
+  petBreed: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
   },
   contactSection: {
     gap: spacing.md,

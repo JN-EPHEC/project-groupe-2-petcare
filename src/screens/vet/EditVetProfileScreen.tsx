@@ -13,7 +13,7 @@ interface EditVetProfileScreenProps {
 
 export const EditVetProfileScreen: React.FC<EditVetProfileScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   
   // États pour tous les champs du profil
   const [firstName, setFirstName] = useState(user?.firstName || '');
@@ -76,6 +76,11 @@ export const EditVetProfileScreen: React.FC<EditVetProfileScreenProps> = ({ navi
       console.log('🔹 Données à mettre à jour:', updateData);
       await updateUserProfile(user.id, updateData);
       console.log('✅ Profil mis à jour avec succès!');
+
+      // Rafraîchir les données utilisateur immédiatement
+      console.log('🔄 Rafraîchissement des données utilisateur...');
+      await refreshUser();
+      console.log('✅ Données utilisateur rafraîchies!');
 
       Alert.alert(
         'Succès',
