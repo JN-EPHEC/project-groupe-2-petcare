@@ -276,14 +276,22 @@ export const getCurrentUser = async (): Promise<FirebaseUserData | null> => {
     const user = auth.currentUser;
     
     if (!user) {
+      console.log('❌ [getCurrentUser] Aucun utilisateur Firebase connecté');
       return null;
     }
     
+    console.log('🔍 [getCurrentUser] Récupération des données pour:', user.uid, user.email);
     const userDoc = await getDoc(doc(db, 'users', user.uid));
     
     if (userDoc.exists()) {
       const userData = userDoc.data();
-      return {
+      console.log('📦 [getCurrentUser] Données brutes Firestore:', userData);
+      console.log('👤 [getCurrentUser] firstName:', userData.firstName);
+      console.log('👤 [getCurrentUser] lastName:', userData.lastName);
+      console.log('📧 [getCurrentUser] email:', userData.email);
+      console.log('🎭 [getCurrentUser] role:', userData.role);
+      
+      const result = {
         id: user.uid,
         email: user.email || '',
         firstName: userData.firstName,
@@ -299,11 +307,16 @@ export const getCurrentUser = async (): Promise<FirebaseUserData | null> => {
         approved: userData.approved,
         rating: userData.rating,
       };
+      
+      console.log('✅ [getCurrentUser] Données retournées:', result);
+      return result;
+    } else {
+      console.log('❌ [getCurrentUser] Document utilisateur inexistant dans Firestore pour:', user.uid);
     }
     
     return null;
   } catch (error: any) {
-    console.error('Erreur de récupération utilisateur:', error);
+    console.error('❌ [getCurrentUser] Erreur de récupération utilisateur:', error);
     return null;
   }
 };

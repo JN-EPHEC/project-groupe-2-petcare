@@ -7,4 +7,5 @@ export { VetPatientDetailScreen } from './VetPatientDetailScreen';
 export { VetScheduleScreen } from './VetScheduleScreen';
 export { VetAssignmentRequestsScreen } from './VetAssignmentRequestsScreen';
 export { VetNotificationsScreen } from './VetNotificationsScreen';
+export { ManageAppointmentRequestScreen } from './ManageAppointmentRequestScreen';
 

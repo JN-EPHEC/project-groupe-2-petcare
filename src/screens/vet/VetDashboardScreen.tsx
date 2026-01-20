@@ -125,7 +125,7 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
     apt.status === 'pending'
   );
   const confirmedAppointments = appointments.filter(apt => 
-    apt.status === 'confirmed'
+    apt.status === 'upcoming'
   );
   
   const stats = {
@@ -146,14 +146,18 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed':
-        return '#4ECDC4';
+      case 'upcoming':
+        return '#66BB6A';
       case 'pending':
-        return '#FFB347';
+        return '#FFA726';
+      case 'proposed':
+        return colors.teal;
       case 'completed':
         return '#95E1D3';
       case 'cancelled':
         return '#FF6B6B';
+      case 'rejected':
+        return '#EF5350';
       default:
         return colors.gray;
     }
@@ -303,8 +307,8 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{pendingAppointments.length}</Text>
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate('ManageAppointments')}>
-              <Text style={styles.seeAllText}>Gérer</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('VetAppointments')}>
+              <Text style={styles.seeAllText}>Voir tout</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -314,7 +318,7 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
             <TouchableOpacity 
               key={request.id} 
               style={styles.requestCard}
-              onPress={() => navigation.navigate('ManageAppointments')}
+              onPress={() => navigation.navigate('ManageAppointmentRequest', { appointment: request })}
             >
               <View style={styles.requestIcon}>
                 <Ionicons name="alert-circle" size={28} color="#FFB347" />
@@ -325,21 +329,26 @@ export const VetDashboardScreen: React.FC<VetDashboardScreenProps> = ({ navigati
                 <Text style={styles.ownerName}>{request.ownerName}</Text>
                 {request.reason && (
                   <Text style={styles.reasonText} numberOfLines={1}>
-                    {request.reason}
+                    📋 {request.reason}
                   </Text>
                 )}
                 <Text style={styles.requestDate}>
-                  Souhaité: {request.date} à {request.time}
+                  📅 Souhaité: {request.date} à {request.time}
                 </Text>
               </View>
 
-              <Ionicons name="chevron-forward" size={24} color={colors.gray} />
+              <View style={styles.requestAction}>
+                <Ionicons name="chevron-forward" size={24} color={colors.teal} />
+              </View>
             </TouchableOpacity>
           ))
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="checkmark-done-circle-outline" size={48} color={colors.gray} />
             <Text style={styles.emptyStateText}>Aucune demande en attente</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Les nouvelles demandes de rendez-vous apparaîtront ici
+            </Text>
           </View>
         )}
       </View>
@@ -610,6 +619,10 @@ const styles = StyleSheet.create({
     color: colors.gray,
     marginTop: spacing.xs,
   },
+  requestAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   preferredDate: {
     fontSize: typography.fontSize.xs,
     color: colors.teal,
@@ -638,6 +651,12 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.gray,
     fontStyle: 'italic',
+  },
+  emptyStateSubtext: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
 });
 

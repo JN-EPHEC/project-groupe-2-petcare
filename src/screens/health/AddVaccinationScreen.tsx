@@ -105,7 +105,7 @@ export const AddVaccinationScreen: React.FC<AddVaccinationScreenProps> = ({
       await addVaccination({
         petId: pet.id,
         petName: pet.name,
-        ownerId: user?.id || '',
+        ownerId: pet.ownerId || user?.id || '',
         type: type.trim(),
         date: date.toISOString(),
         vet: vet.trim() || undefined,

@@ -59,6 +59,7 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
           try {
             const owner = await getUserById(pet.ownerId);
             console.log(`👤 Loaded owner for pet ${pet.name}: ${owner?.firstName} ${owner?.lastName}`);
+            console.log(`📸 Pet ${pet.name} avatarUrl:`, pet.avatarUrl);
             
             // Filtrer les rendez-vous de cet animal
             const petAppointments = upcomingAppointments
@@ -215,10 +216,20 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {filteredPatients.length > 0 ? (
           filteredPatients.map((patient) => (
-            <TouchableOpacity key={patient.id} style={styles.patientCard}>
-              <View style={styles.patientAvatar}>
-                <Text style={styles.avatarEmoji}>{patient.emoji || patient.imageEmoji || '🐾'}</Text>
-              </View>
+            <View 
+              key={patient.id} 
+              style={styles.patientCard}
+            >
+              {patient.avatarUrl ? (
+                <Image 
+                  source={{ uri: patient.avatarUrl }} 
+                  style={styles.patientAvatar}
+                />
+              ) : (
+                <View style={styles.patientAvatarPlaceholder}>
+                  <Text style={styles.avatarEmoji}>{patient.emoji || '🐾'}</Text>
+                </View>
+              )}
 
               <View style={styles.patientInfo}>
                 <View style={styles.patientHeader}>
@@ -300,7 +311,7 @@ export const VetPatientsScreen: React.FC<VetPatientsScreenProps> = ({ navigation
                   </TouchableOpacity>
                 </View>
               </View>
-            </TouchableOpacity>
+            </View>
           ))
         ) : (
           <View style={styles.emptyState}>
@@ -437,6 +448,12 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   patientAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: colors.lightBlue,
+  },
+  patientAvatarPlaceholder: {
     width: 70,
     height: 70,
     borderRadius: 35,

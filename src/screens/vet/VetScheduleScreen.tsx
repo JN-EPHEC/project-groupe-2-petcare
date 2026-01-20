@@ -34,6 +34,7 @@ export const VetScheduleScreen: React.FC<VetScheduleScreenProps> = ({ navigation
   const [consultationRate, setConsultationRate] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
@@ -290,71 +291,22 @@ export const VetScheduleScreen: React.FC<VetScheduleScreenProps> = ({ navigation
 
       console.log('✅ Horaires sauvegardés avec succès');
       
-      // Créer un résumé détaillé des horaires
-      const openDays = (Object.keys(schedule) as DayKey[])
-        .filter(day => schedule[day].enabled)
-        .map(day => dayNames[day]);
+      // Afficher le succès visuellement
+      setSaveSuccess(true);
+      setIsSaving(false);
       
-      const closedDays = (Object.keys(schedule) as DayKey[])
-        .filter(day => !schedule[day].enabled)
-        .map(day => dayNames[day]);
-      
-      let summary = '✅ HORAIRES ENREGISTRÉS\n\n';
-      
-      // Jours ouverts
-      if (openDays.length > 0) {
-        summary += '📅 Jours d\'ouverture:\n';
-        (Object.keys(schedule) as DayKey[]).forEach(day => {
-          if (schedule[day].enabled) {
-            summary += `   • ${dayNames[day]}: ${schedule[day].start} - ${schedule[day].end}\n`;
-          }
-        });
-        summary += '\n';
-      }
-      
-      // Jours fermés
-      if (closedDays.length > 0) {
-        summary += `🚫 Fermé: ${closedDays.join(', ')}\n\n`;
-      }
-      
-      // Astreintes
-      summary += `🌙 Astreintes: ${onCallDates.length} nuit(s)\n\n`;
-      
-      // Durée consultations
-      summary += `⏱️ Durée consultations: ${appointmentDuration === 60 ? '1 heure' : `${appointmentDuration} min`}\n\n`;
-      
-      // Nouveaux patients
-      summary += `${acceptNewPatients ? '✅' : '❌'} Nouveaux patients: ${acceptNewPatients ? 'Acceptés' : 'Refusés'}\n\n`;
-      
-      // Prix consultation
-      if (consultationRate) {
-        summary += `💰 Prix consultation: ${consultationRate}€`;
-      }
-      
-      // Mettre à jour l'heure de dernière sauvegarde
-      const now = new Date();
-      setLastSaved(now);
-      setShowSuccessBanner(true);
-      
-      // Masquer la bannière après 3 secondes
+      // Fermer la page après 1 seconde
       setTimeout(() => {
-        setShowSuccessBanner(false);
-      }, 3000);
-      
-      Alert.alert(
-        '✅ Sauvegarde réussie',
-        summary,
-        [{ text: 'OK' }]
-      );
+        navigation.goBack();
+      }, 1000);
     } catch (error) {
       console.error('❌ Erreur sauvegarde horaires:', error);
+      setIsSaving(false);
       Alert.alert(
         'Erreur',
         'Une erreur est survenue lors de la sauvegarde des horaires. Veuillez réessayer.',
         [{ text: 'OK' }]
       );
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -597,53 +549,27 @@ export const VetScheduleScreen: React.FC<VetScheduleScreenProps> = ({ navigation
 
               {info.enabled && (
                 <View style={styles.timeControls}>
-                  {Platform.OS === 'web' ? (
-                    <>
-                      <View style={styles.timeInputContainer}>
-                        <Ionicons name="time-outline" size={20} color={colors.teal} />
-                        <Text style={styles.timeLabel}>Début:</Text>
-                        <TextInput
-                          style={styles.timeInput}
-                          value={info.start}
-                          onChangeText={(value) => handleWebTimeChange(day, 'start', value)}
-                          placeholder="09:00"
-                          // @ts-ignore - type prop is web-only
-                          type="time"
-                        />
-                      </View>
-
-                      <View style={styles.timeInputContainer}>
-                        <Ionicons name="time-outline" size={20} color={colors.teal} />
-                        <Text style={styles.timeLabel}>Fin:</Text>
-                        <TextInput
-                          style={styles.timeInput}
-                          value={info.end}
-                          onChangeText={(value) => handleWebTimeChange(day, 'end', value)}
-                          placeholder="18:00"
-                          // @ts-ignore - type prop is web-only
-                          type="time"
-                        />
-                      </View>
-                    </>
-                  ) : (
-                    <>
                   <TouchableOpacity 
                     style={styles.timeButton}
-                        onPress={() => openTimePicker(day, 'start')}
+                    onPress={() => openTimePicker(day, 'start')}
                   >
-                    <Ionicons name="time-outline" size={20} color={colors.teal} />
-                    <Text style={styles.timeButtonText}>Début: {info.start}</Text>
+                    <View style={styles.timeButtonContent}>
+                      <Ionicons name="time-outline" size={18} color={colors.teal} />
+                      <Text style={styles.timeButtonLabel}>Début:</Text>
+                    </View>
+                    <Text style={styles.timeButtonValue}>{info.start}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity 
                     style={styles.timeButton}
-                        onPress={() => openTimePicker(day, 'end')}
+                    onPress={() => openTimePicker(day, 'end')}
                   >
-                    <Ionicons name="time-outline" size={20} color={colors.teal} />
-                    <Text style={styles.timeButtonText}>Fin: {info.end}</Text>
+                    <View style={styles.timeButtonContent}>
+                      <Ionicons name="time-outline" size={18} color={colors.teal} />
+                      <Text style={styles.timeButtonLabel}>Fin:</Text>
+                    </View>
+                    <Text style={styles.timeButtonValue}>{info.end}</Text>
                   </TouchableOpacity>
-                    </>
-                  )}
                 </View>
               )}
             </View>
@@ -690,13 +616,21 @@ export const VetScheduleScreen: React.FC<VetScheduleScreenProps> = ({ navigation
         </View>
 
         <TouchableOpacity 
-          style={[styles.saveButtonLarge, isSaving && styles.saveButtonLargeDisabled]} 
+          style={[
+            styles.saveButtonLarge, 
+            isSaving && styles.saveButtonLargeDisabled,
+            saveSuccess && styles.saveButtonLargeSuccess
+          ]} 
           onPress={handleSaveSchedule}
-          disabled={isSaving}
+          disabled={isSaving || saveSuccess}
         >
-          <Ionicons name="save" size={24} color={colors.white} />
+          <Ionicons 
+            name={saveSuccess ? "checkmark-circle" : "save"} 
+            size={24} 
+            color={colors.white} 
+          />
           <Text style={styles.saveButtonText}>
-            {isSaving ? 'Sauvegarde en cours...' : 'Sauvegarder les modifications'}
+            {saveSuccess ? '✅ Sauvegardé !' : isSaving ? 'Sauvegarde en cours...' : 'Sauvegarder les modifications'}
           </Text>
         </TouchableOpacity>
 
@@ -706,7 +640,63 @@ export const VetScheduleScreen: React.FC<VetScheduleScreenProps> = ({ navigation
       {/* Time Picker Modal */}
       {showTimePicker && (
         <>
-          {Platform.OS === 'ios' && (
+          {Platform.OS === 'web' ? (
+            <Modal
+              visible={showTimePicker}
+              transparent
+              animationType="fade"
+              onRequestClose={closeTimePicker}
+            >
+              <View style={styles.timePickerModalOverlay}>
+                <View style={styles.timePickerModalContent}>
+                  <View style={styles.timePickerModalHeader}>
+                    <Text style={styles.timePickerModalTitle}>
+                      {selectedDay && selectedTimeType && (
+                        `${dayNames[selectedDay]} - ${selectedTimeType === 'start' ? 'Heure de début' : 'Heure de fin'}`
+                      )}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.timePickerInputContainer}>
+                    <Ionicons name="time-outline" size={32} color={colors.teal} />
+                    <TextInput
+                      style={styles.timePickerInput}
+                      value={selectedDay && selectedTimeType ? schedule[selectedDay][selectedTimeType] : ''}
+                      onChangeText={(value) => {
+                        if (selectedDay && selectedTimeType && value.match(/^\d{0,2}:?\d{0,2}$/)) {
+                          setSchedule(prev => ({
+                            ...prev,
+                            [selectedDay]: {
+                              ...prev[selectedDay],
+                              [selectedTimeType]: value
+                            }
+                          }));
+                        }
+                      }}
+                      placeholder="HH:MM"
+                      // @ts-ignore
+                      type="time"
+                    />
+                  </View>
+
+                  <View style={styles.timePickerModalButtons}>
+                    <TouchableOpacity 
+                      style={[styles.timePickerModalButton, styles.timePickerModalButtonCancel]}
+                      onPress={closeTimePicker}
+                    >
+                      <Text style={styles.timePickerModalButtonTextCancel}>Annuler</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.timePickerModalButton, styles.timePickerModalButtonConfirm]}
+                      onPress={closeTimePicker}
+                    >
+                      <Text style={styles.timePickerModalButtonTextConfirm}>Confirmer</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          ) : Platform.OS === 'ios' ? (
             <View style={styles.timePickerModal}>
               <View style={styles.timePickerHeader}>
                 <Text style={styles.timePickerTitle}>
@@ -727,9 +717,7 @@ export const VetScheduleScreen: React.FC<VetScheduleScreenProps> = ({ navigation
                 locale="fr-FR"
               />
             </View>
-          )}
-          
-          {Platform.OS === 'android' && (
+          ) : (
             <DateTimePicker
               value={tempTime}
               mode="time"
@@ -1050,11 +1038,30 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
+    justifyContent: 'space-between',
     backgroundColor: colors.white,
     borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+  },
+  timeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  timeButtonLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.gray,
+  },
+  timeButtonValue: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.teal,
+    minWidth: 55,
+    textAlign: 'center',
   },
   timeButtonText: {
     fontSize: typography.fontSize.sm,
@@ -1143,13 +1150,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray,
     opacity: 0.6,
   },
+  saveButtonLargeSuccess: {
+    backgroundColor: colors.success,
+  },
   saveButtonText: {
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
   },
   bottomSpacer: {
-    height: spacing.xxl,
+    height: 150,
   },
   timePickerModal: {
     position: 'absolute',
@@ -1183,5 +1193,78 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
     color: colors.teal,
+  },
+  // Styles pour le modal web
+  timePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  timePickerModalContent: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: colors.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  timePickerModalHeader: {
+    marginBottom: spacing.xl,
+  },
+  timePickerModalTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    textAlign: 'center',
+  },
+  timePickerInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  timePickerInput: {
+    fontSize: 32,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.teal,
+    textAlign: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: colors.teal,
+    paddingVertical: spacing.sm,
+    minWidth: 150,
+  },
+  timePickerModalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  timePickerModalButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+  },
+  timePickerModalButtonCancel: {
+    backgroundColor: colors.lightGray,
+  },
+  timePickerModalButtonConfirm: {
+    backgroundColor: colors.teal,
+  },
+  timePickerModalButtonTextCancel: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.gray,
+  },
+  timePickerModalButtonTextConfirm: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
   },
 });

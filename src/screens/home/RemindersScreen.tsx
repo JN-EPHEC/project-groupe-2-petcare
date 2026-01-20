@@ -97,6 +97,12 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ navigation }) 
             <Ionicons name="calendar-outline" size={14} color={colors.gray} />
             <Text style={styles.reminderDate}>{reminder.date}</Text>
           </View>
+          {reminder.time && (
+            <View style={styles.reminderTimeRow}>
+              <Ionicons name="time-outline" size={14} color={colors.teal} />
+              <Text style={styles.reminderTime}>{reminder.time}</Text>
+            </View>
+          )}
         </View>
 
         <View style={[styles.statusBadge, isPast ? styles.pastBadge : styles.upcomingBadge]}>
@@ -386,6 +392,17 @@ const styles = StyleSheet.create({
   reminderDate: {
     fontSize: typography.fontSize.sm,
     color: colors.gray,
+  },
+  reminderTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: 4,
+  },
+  reminderTime: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.teal,
   },
   statusBadge: {
     width: 32,

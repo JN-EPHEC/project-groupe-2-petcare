@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { getVets, createAppointment } from '../../services/firestoreService';
-import { CustomPicker } from '../../components';
+import { CustomPicker, InAppAlert } from '../../components';
 import { sendNewAppointmentRequestNotification } from '../../services/notificationService';
 
 interface RequestAppointmentScreenProps {
@@ -40,6 +40,27 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoadingVets, setIsLoadingVets] = useState(true);
+  
+  // État pour l'alert in-app
+  const [alert, setAlert] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info') => {
+    setAlert({ visible: true, title, message, type });
+  };
+
+  const closeAlert = () => {
+    setAlert({ ...alert, visible: false });
+  };
 
   // Réinitialiser la sélection d'animal quand on change de vétérinaire
   useEffect(() => {
@@ -95,32 +116,32 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
   const handleSubmit = async () => {
     // Validation
     if (!selectedVetId) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un vétérinaire');
+      showAlert('Erreur', 'Veuillez sélectionner un vétérinaire', 'error');
       return;
     }
 
     if (!selectedPetId) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un animal');
+      showAlert('Erreur', 'Veuillez sélectionner un animal', 'error');
       return;
     }
 
     if (!reason.trim()) {
-      Alert.alert('Erreur', 'Veuillez indiquer la raison de la consultation');
+      showAlert('Erreur', 'Veuillez indiquer la raison de la consultation', 'error');
       return;
     }
 
     if (!date) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une date');
+      showAlert('Erreur', 'Veuillez sélectionner une date', 'error');
       return;
     }
 
     if (!time) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une heure');
+      showAlert('Erreur', 'Veuillez sélectionner une heure', 'error');
       return;
     }
 
     if (!user?.id) {
-      Alert.alert('Erreur', 'Utilisateur non connecté');
+      showAlert('Erreur', 'Utilisateur non connecté', 'error');
       return;
     }
 
@@ -185,11 +206,7 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
       console.error('Error creating appointment:', error);
       setIsLoading(false);
       const message = error instanceof Error ? error.message : 'Impossible d\'envoyer la demande';
-      if (Platform.OS === 'web') {
-        window.alert(`Erreur: ${message}`);
-      } else {
-        Alert.alert('Erreur', message);
-      }
+      showAlert('Erreur', message, 'error');
     }
   };
 
@@ -209,6 +226,15 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
 
   return (
     <View style={styles.container}>
+      {/* In-App Alert */}
+      <InAppAlert
+        visible={alert.visible}
+        title={alert.title}
+        message={alert.message}
+        type={alert.type}
+        onConfirm={closeAlert}
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -239,17 +265,11 @@ export const RequestAppointmentScreen: React.FC<RequestAppointmentScreenProps> =
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => {
-                  if (Platform.OS === 'web') {
-                    window.alert('Allez dans le profil d\'un animal pour lui attribuer un vétérinaire');
-                  } else {
-                    Alert.alert(
-                      'Attribuer un vétérinaire',
-                      'Allez dans le profil d\'un animal pour lui attribuer un vétérinaire',
-                      [
-                        { text: 'OK', onPress: () => navigation.goBack() }
-                      ]
-                    );
-                  }
+                  showAlert(
+                    'Attribuer un vétérinaire',
+                    'Allez dans le profil d\'un animal pour lui attribuer un vétérinaire',
+                    'info'
+                  );
                 }}
               >
                 <Ionicons name="information-circle" size={20} color={colors.white} />

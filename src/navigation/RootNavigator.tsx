@@ -92,6 +92,7 @@ import {
   VetScheduleScreen,
   VetAssignmentRequestsScreen,
   VetNotificationsScreen,
+  ManageAppointmentRequestScreen,
 } from '../screens/vet';
 
 // Appointment Screens
@@ -217,8 +218,15 @@ const VetDashboardStack = () => {
       <Stack.Screen name="VetDashboard" component={VetDashboardScreen} />
       <Stack.Screen name="VetAppointments" component={VetAppointmentsScreen} />
       <Stack.Screen name="ManageAppointments" component={ManageAppointmentsScreen} />
+      <Stack.Screen name="ManageAppointmentRequest" component={ManageAppointmentRequestScreen} />
       <Stack.Screen name="VetPatients" component={VetPatientsScreen} />
       <Stack.Screen name="VetPatientDetail" component={VetPatientDetailScreen} />
+      <Stack.Screen name="AddVaccination" component={AddVaccinationScreen} />
+      <Stack.Screen name="AddTreatment" component={AddTreatmentScreen} />
+      <Stack.Screen name="AddMedicalHistory" component={AddMedicalHistoryScreen} />
+      <Stack.Screen name="EditVaccination" component={EditVaccinationScreen} />
+      <Stack.Screen name="EditTreatment" component={EditTreatmentScreen} />
+      <Stack.Screen name="EditMedicalHistory" component={EditMedicalHistoryScreen} />
       <Stack.Screen name="VetSchedule" component={VetScheduleScreen} />
       <Stack.Screen name="VetAssignmentRequests" component={VetAssignmentRequestsScreen} />
       <Stack.Screen name="VetNotifications" component={VetNotificationsScreen} />
@@ -250,6 +258,12 @@ const VetPatientsStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="VetPatientsList" component={VetPatientsScreen} />
       <Stack.Screen name="VetPatientDetail" component={VetPatientDetailScreen} />
+      <Stack.Screen name="AddVaccination" component={AddVaccinationScreen} />
+      <Stack.Screen name="AddTreatment" component={AddTreatmentScreen} />
+      <Stack.Screen name="AddMedicalHistory" component={AddMedicalHistoryScreen} />
+      <Stack.Screen name="EditVaccination" component={EditVaccinationScreen} />
+      <Stack.Screen name="EditTreatment" component={EditTreatmentScreen} />
+      <Stack.Screen name="EditMedicalHistory" component={EditMedicalHistoryScreen} />
     </Stack.Navigator>
   );
 };

@@ -29,6 +29,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
   const [isLoading, setIsLoading] = useState(true);
   const [showNotificationConsent, setShowNotificationConsent] = useState(false);
 
+  // Logs de debug pour voir les données utilisateur
+  useEffect(() => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🏠 [HomeScreen] DONNÉES UTILISATEUR:');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📦 user object:', user);
+    console.log('👤 firstName:', user?.firstName);
+    console.log('👤 lastName:', user?.lastName);
+    console.log('📧 email:', user?.email);
+    console.log('🎭 role:', user?.role);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }, [user]);
+
   const loadUserData = useCallback(async () => {
     if (!user?.id) return;
     
@@ -314,7 +327,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, route }) => 
               <View style={styles.premiumBannerText}>
                 <Text style={styles.premiumBannerTitle}>Passez à Premium ✨</Text>
                 <Text style={styles.premiumBannerSubtitle}>
-                  Débloquez toutes les fonctionnalités • €9.99/mois
+                  Débloquez toutes les fonctionnalités • €12.99/an
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={24} color={colors.white} />

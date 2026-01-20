@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
+import { InAppAlert } from '../../components';
 import {
   getRemindersByOwnerId,
   getVaccinationsByOwnerId,
   getAppointmentsByOwnerId,
+  addReminder,
 } from '../../services/firestoreService';
 
 interface CalendarScreenProps {
@@ -47,8 +50,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const [showAddModal, setShowAddModal] = useState(false);
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderType, setNewReminderType] = useState<'vaccine' | 'vermifuge' | 'checkup' | 'medication'>('vaccine');
+  const [newReminderTime, setNewReminderTime] = useState<Date>(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [allReminders, setAllReminders] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [alert, setAlert] = useState<{ visible: boolean; title: string; message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
 
   const loadCalendarData = async () => {
     if (!user?.id) return;
@@ -84,6 +91,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
           date: reminder.date,
           type: 'reminder',
           status: reminder.status,
+          time: reminder.time, // Ajouter l'heure du rappel
         });
       });
 
@@ -102,16 +110,26 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
         }
       });
 
-      // Ajouter les rendez-vous FUTURS (pending ou confirmed)
+      // Ajouter les rendez-vous FUTURS (pending, proposed ou upcoming)
       appointments.forEach((appointment) => {
         const apptDate = appointment.date.split('T')[0]; // Format YYYY-MM-DD
         if (
           apptDate >= todayStr &&
-          (appointment.status === 'pending' || appointment.status === 'confirmed')
+          (appointment.status === 'pending' || appointment.status === 'proposed' || appointment.status === 'upcoming')
         ) {
+          // Déterminer le titre selon le statut
+          let title = `🩺 RDV ${appointment.vetName || 'Vétérinaire'}`;
+          if (appointment.status === 'pending') {
+            title = `⏳ RDV en attente - ${appointment.vetName || 'Vétérinaire'}`;
+          } else if (appointment.status === 'proposed') {
+            title = `📅 RDV proposé - ${appointment.vetName || 'Vétérinaire'}`;
+          } else if (appointment.status === 'upcoming') {
+            title = `✅ RDV confirmé - ${appointment.vetName || 'Vétérinaire'}`;
+          }
+
           events.push({
             id: appointment.id,
-            title: `🩺 RDV ${appointment.vetName || 'Vétérinaire'}`,
+            title,
             date: apptDate,
             type: 'appointment',
             status: appointment.status,
@@ -322,37 +340,114 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     }
   };
 
-  const handleAddReminder = () => {
+  const handleAddReminder = async () => {
     if (!newReminderTitle.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer un titre pour le rappel');
+      setAlert({
+        visible: true,
+        title: 'Erreur',
+        message: 'Veuillez entrer un titre pour le rappel',
+        type: 'error',
+      });
       return;
     }
 
     if (!selectedDate) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une date');
+      setAlert({
+        visible: true,
+        title: 'Erreur',
+        message: 'Veuillez sélectionner une date',
+        type: 'error',
+      });
       return;
     }
 
-    // Format date as YYYY-MM-DD
-    const dateStr = `${selectedDate.year}-${String(selectedDate.month + 1).padStart(2, '0')}-${String(selectedDate.date).padStart(2, '0')}`;
-    
-    // In production, this would save to database
-    console.log('New reminder:', {
-      title: newReminderTitle,
-      type: newReminderType,
-      date: dateStr,
-      petId: currentPet?.id,
-    });
+    if (!user?.id) {
+      setAlert({
+        visible: true,
+        title: 'Erreur',
+        message: 'Vous devez être connecté pour ajouter un rappel',
+        type: 'error',
+      });
+      return;
+    }
 
-    Alert.alert(
-      'Rappel ajouté !',
-      `"${newReminderTitle}" a été ajouté pour le ${selectedDate.date} ${monthNames[selectedDate.month]}`,
-      [{ text: 'OK', onPress: () => {
-        setShowAddModal(false);
-        setNewReminderTitle('');
-        setNewReminderType('vaccine');
-      }}]
-    );
+    try {
+      setIsSaving(true);
+
+      // Format date as YYYY-MM-DD
+      const dateStr = `${selectedDate.year}-${String(selectedDate.month + 1).padStart(2, '0')}-${String(selectedDate.date).padStart(2, '0')}`;
+      
+      // Format time as HH:MM
+      const timeStr = `${String(newReminderTime.getHours()).padStart(2, '0')}:${String(newReminderTime.getMinutes()).padStart(2, '0')}`;
+
+      console.log('📅 Création rappel:', {
+        title: newReminderTitle,
+        type: newReminderType,
+        date: dateStr,
+        time: timeStr,
+        petId: currentPet?.id || 'no-pet',
+        ownerId: user.id,
+      });
+
+      // Save to Firestore
+      await addReminder({
+        petId: currentPet?.id || 'no-pet',
+        petName: currentPet?.name || 'Général',
+        ownerId: user.id,
+        title: newReminderTitle,
+        type: newReminderType,
+        date: dateStr,
+        time: timeStr,
+        completed: false,
+        notes: '',
+      });
+
+      console.log('✅ Rappel créé avec succès');
+
+      // Reload calendar data
+      await loadCalendarData();
+
+      // Show success message
+      setAlert({
+        visible: true,
+        title: 'Rappel enregistré !',
+        message: `"${newReminderTitle}" a été ajouté pour le ${selectedDate.date} ${monthNames[selectedDate.month]} à ${timeStr}`,
+        type: 'success',
+      });
+
+      // Close modal and reset form
+      setShowAddModal(false);
+      setNewReminderTitle('');
+      setNewReminderType('vaccine');
+      setNewReminderTime(new Date());
+    } catch (error) {
+      console.error('❌ Erreur création rappel:', error);
+      setAlert({
+        visible: true,
+        title: 'Erreur',
+        message: 'Impossible de créer le rappel. Veuillez réessayer.',
+        type: 'error',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    if (selectedTime) {
+      setNewReminderTime(selectedTime);
+    }
+  };
+
+  const handleWebTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const [hours, minutes] = event.target.value.split(':').map(Number);
+    const newTime = new Date(newReminderTime);
+    newTime.setHours(hours);
+    newTime.setMinutes(minutes);
+    setNewReminderTime(newTime);
   };
 
   const handleSyncCalendar = () => {
@@ -727,6 +822,47 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 onChangeText={setNewReminderTitle}
               />
 
+              <Text style={styles.inputLabel}>Heure du rappel</Text>
+              {Platform.OS === 'web' ? (
+                <View style={styles.timeInputContainer}>
+                  <Ionicons name="time-outline" size={20} color={colors.teal} />
+                  <input
+                    type="time"
+                    value={`${String(newReminderTime.getHours()).padStart(2, '0')}:${String(newReminderTime.getMinutes()).padStart(2, '0')}`}
+                    onChange={handleWebTimeChange as any}
+                    style={{
+                      backgroundColor: colors.lightBlue,
+                      border: 'none',
+                      borderRadius: borderRadius.md,
+                      padding: spacing.md,
+                      fontSize: typography.fontSize.md,
+                      color: colors.black,
+                      flex: 1,
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.timeButton}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <Ionicons name="time-outline" size={20} color={colors.teal} />
+                  <Text style={styles.timeText}>
+                    {`${String(newReminderTime.getHours()).padStart(2, '0')}:${String(newReminderTime.getMinutes()).padStart(2, '0')}`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {showTimePicker && Platform.OS !== 'web' && (
+                <DateTimePicker
+                  value={newReminderTime}
+                  mode="time"
+                  is24Hour={true}
+                  display="default"
+                  onChange={handleTimeChange}
+                />
+              )}
+
               <Text style={styles.inputLabel}>Type</Text>
               <View style={styles.typeButtons}>
                 {(['vaccine', 'vermifuge', 'checkup', 'medication'] as const).map((type) => {
@@ -756,20 +892,42 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowAddModal(false)}
+                onPress={() => {
+                  setShowAddModal(false);
+                  setNewReminderTitle('');
+                  setNewReminderType('vaccine');
+                  setNewReminderTime(new Date());
+                }}
+                disabled={isSaving}
               >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={[styles.modalButton, styles.saveButton, isSaving && styles.saveButtonDisabled]}
                 onPress={handleAddReminder}
+                disabled={isSaving}
               >
-                <Text style={styles.saveButtonText}>Ajouter</Text>
+                {isSaving ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.saveButtonText}>Ajouter</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* In-App Alert */}
+      {alert && (
+        <InAppAlert
+          visible={alert.visible}
+          title={alert.title}
+          message={alert.message}
+          type={alert.type}
+          onClose={() => setAlert(null)}
+        />
+      )}
     </View>
   );
 };
@@ -1226,6 +1384,33 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  timeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightBlue,
+    borderRadius: borderRadius.md,
+    paddingLeft: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  timeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightBlue,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  timeText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.navy,
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,

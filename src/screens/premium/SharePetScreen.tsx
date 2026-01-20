@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Share, Clipboard, ActivityIndicator, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Share, Clipboard, ActivityIndicator, Image, Modal, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-qr-code';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import { PremiumGate } from '../../components';
+import { PremiumGate, InAppAlert } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { createPetShareLink, getActiveShares, revokeShareLink, activateShareLink, getPetsByOwnerId, Pet } from '../../services/firestoreService';
 import { SharedPet } from '../../types/premium';
@@ -21,6 +22,10 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingPets, setIsLoadingPets] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [currentQRUrl, setCurrentQRUrl] = useState('');
+  const [alert, setAlert] = useState<{ visible: boolean; title: string; message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+  const qrRef = useRef<any>(null);
   
   useEffect(() => {
     loadUserPets();
@@ -78,34 +83,28 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
       const shareToken = await createPetShareLink(selectedPet.id, user?.id || '');
       const shareUrl = getShareUrl(shareToken);
       
-      Alert.alert(
-        'Lien créé !',
-        'Le lien de partage a été créé avec succès',
-        [
-          {
-            text: 'Copier le lien',
-            onPress: () => {
-              Clipboard.setString(shareUrl);
-              Alert.alert('Copié', 'Le lien a été copié dans le presse-papiers');
-            }
-          },
-          {
-            text: 'Partager',
-            onPress: () => handleShare(shareUrl)
-          },
-          {
-            text: 'OK'
-          }
-        ]
-      );
+      // Afficher le QR code
+      setCurrentQRUrl(shareUrl);
+      setShowQRModal(true);
       
       await loadShares();
     } catch (error) {
       console.error('Error creating share:', error);
-      Alert.alert('Erreur', 'Impossible de créer le lien de partage');
+      setAlert({
+        visible: true,
+        title: 'Erreur',
+        message: 'Impossible de créer le lien de partage',
+        type: 'error',
+      });
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleShowQRCode = (token: string) => {
+    const shareUrl = getShareUrl(token);
+    setCurrentQRUrl(shareUrl);
+    setShowQRModal(true);
   };
   
   const handleShare = async (shareUrl: string) => {
@@ -320,18 +319,18 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
                     <View style={styles.shareActions}>
                       <TouchableOpacity 
                         style={[styles.shareActionButton, !isActive && styles.shareActionButtonDisabled]}
-                        onPress={() => handleCopyLink(share.shareToken)}
+                        onPress={() => handleShowQRCode(share.shareToken)}
                         disabled={!isActive}
                       >
-                        <Ionicons name="copy-outline" size={20} color={isActive ? colors.teal : colors.lightGray} />
+                        <Ionicons name="qr-code-outline" size={20} color={isActive ? colors.teal : colors.lightGray} />
                       </TouchableOpacity>
                       
                       <TouchableOpacity 
                         style={[styles.shareActionButton, !isActive && styles.shareActionButtonDisabled]}
-                        onPress={() => handleShare(getShareUrl(share.shareToken))}
+                        onPress={() => handleCopyLink(share.shareToken)}
                         disabled={!isActive}
                       >
-                        <Ionicons name="share-social-outline" size={20} color={isActive ? colors.teal : colors.lightGray} />
+                        <Ionicons name="copy-outline" size={20} color={isActive ? colors.teal : colors.lightGray} />
                       </TouchableOpacity>
                       
                       <TouchableOpacity 
@@ -387,6 +386,111 @@ export const SharePetScreen: React.FC<SharePetScreenProps> = ({ navigation, rout
             </>
           )}
         </ScrollView>
+
+        {/* QR Code Modal */}
+        <Modal
+          visible={showQRModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowQRModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.qrModalContent}>
+              <View style={styles.qrModalHeader}>
+                <Text style={styles.qrModalTitle}>Scanner ce QR Code</Text>
+                <TouchableOpacity
+                  style={styles.qrModalClose}
+                  onPress={() => setShowQRModal(false)}
+                >
+                  <Ionicons name="close" size={24} color={colors.navy} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.qrContainer}>
+                {Platform.OS === 'web' ? (
+                  <QRCode
+                    value={currentQRUrl}
+                    size={250}
+                    level="H"
+                    fgColor={colors.navy}
+                    bgColor={colors.white}
+                  />
+                ) : (
+                  <View style={styles.qrPlaceholder}>
+                    <Ionicons name="qr-code" size={200} color={colors.teal} />
+                    <Text style={styles.qrPlaceholderText}>
+                      QR Code disponible sur la version web
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.qrInfo}>
+                <Ionicons name="information-circle" size={20} color={colors.teal} />
+                <Text style={styles.qrInfoText}>
+                  {selectedPet ? `Scannez ce code pour accéder au carnet de ${selectedPet.name}` : 'Scannez ce code pour accéder au carnet'}
+                </Text>
+              </View>
+
+              <View style={styles.qrUrlContainer}>
+                <Text style={styles.qrUrlLabel}>Lien direct :</Text>
+                <Text style={styles.qrUrl} numberOfLines={1}>{currentQRUrl}</Text>
+              </View>
+
+              <View style={styles.qrActions}>
+                <TouchableOpacity
+                  style={styles.qrActionButton}
+                  onPress={() => {
+                    Clipboard.setString(currentQRUrl);
+                    setAlert({
+                      visible: true,
+                      title: 'Copié !',
+                      message: 'Le lien a été copié dans le presse-papiers',
+                      type: 'success',
+                    });
+                  }}
+                >
+                  <Ionicons name="copy-outline" size={20} color={colors.white} />
+                  <Text style={styles.qrActionText}>Copier le lien</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.qrActionButton, styles.qrActionButtonSecondary]}
+                  onPress={async () => {
+                    try {
+                      await Share.share({
+                        message: `Consultez le carnet de santé de ${selectedPet?.name || 'mon animal'} sur PetCare+\n\n${currentQRUrl}`,
+                        title: `Carnet de ${selectedPet?.name || 'mon animal'}`,
+                      });
+                    } catch (error) {
+                      console.error('Error sharing:', error);
+                    }
+                  }}
+                >
+                  <Ionicons name="share-social-outline" size={20} color={colors.teal} />
+                  <Text style={[styles.qrActionText, { color: colors.teal }]}>Partager</Text>
+                </TouchableOpacity>
+              </View>
+
+              {Platform.OS === 'web' && (
+                <Text style={styles.qrHint}>
+                  💡 Astuce : Faites un clic droit sur le QR code pour l'enregistrer comme image
+                </Text>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* In-App Alert */}
+        {alert && (
+          <InAppAlert
+            visible={alert.visible}
+            title={alert.title}
+            message={alert.message}
+            type={alert.type}
+            onClose={() => setAlert(null)}
+          />
+        )}
       </View>
     </PremiumGate>
   );
@@ -749,6 +853,137 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semiBold,
     color: colors.white,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  qrModalContent: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  qrModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: spacing.lg,
+  },
+  qrModalTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+  },
+  qrModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.lightBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qrContainer: {
+    backgroundColor: colors.white,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    borderColor: colors.lightBlue,
+    marginBottom: spacing.lg,
+    shadowColor: colors.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  qrPlaceholder: {
+    width: 250,
+    height: 250,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.lightBlue,
+    borderRadius: borderRadius.lg,
+  },
+  qrPlaceholderText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray,
+    textAlign: 'center',
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  qrInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.lightBlue,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  qrInfoText: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
+    color: colors.navy,
+    lineHeight: 20,
+  },
+  qrUrlContainer: {
+    width: '100%',
+    backgroundColor: '#F5F5F5',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.lg,
+  },
+  qrUrlLabel: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.gray,
+    marginBottom: spacing.xs,
+  },
+  qrUrl: {
+    fontSize: typography.fontSize.sm,
+    color: colors.navy,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  qrActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    width: '100%',
+    marginBottom: spacing.md,
+  },
+  qrActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.teal,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.xs,
+  },
+  qrActionButtonSecondary: {
+    backgroundColor: colors.lightBlue,
+  },
+  qrActionText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.white,
+  },
+  qrHint: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 

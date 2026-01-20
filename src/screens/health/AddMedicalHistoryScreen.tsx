@@ -118,7 +118,7 @@ export const AddMedicalHistoryScreen: React.FC<AddMedicalHistoryScreenProps> = (
       await addMedicalHistory({
         petId: pet.id,
         petName: pet.name,
-        ownerId: user?.id || '',
+        ownerId: pet.ownerId || user?.id || '',
         type,
         title: title.trim(),
         description: description.trim(),

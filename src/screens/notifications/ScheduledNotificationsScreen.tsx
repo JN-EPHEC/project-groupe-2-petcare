@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +20,13 @@ import {
   markNotificationAsRead,
   type FirestoreNotification,
 } from '../../services/notificationService';
+import {
+  acceptAssignmentRequest,
+  rejectAssignmentRequest,
+  addNotification,
+  getPetById,
+} from '../../services/firestoreService';
+import { InAppAlert } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 
 interface ScheduledNotificationsScreenProps {
@@ -32,6 +40,31 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
   const [notifications, setNotifications] = useState<FirestoreNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<FirestoreNotification | null>(null);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [petDetails, setPetDetails] = useState<any>(null);
+  
+  // État pour l'alert in-app
+  const [alert, setAlert] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info') => {
+    setAlert({ visible: true, title, message, type });
+  };
+
+  const closeAlert = () => {
+    setAlert({ ...alert, visible: false });
+  };
 
   const loadNotifications = async () => {
     if (!user?.id) {
@@ -99,19 +132,10 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
       await deleteNotificationFromFirestore(notificationId);
       console.log('✅ Notification supprimée:', notificationId);
       await loadNotifications();
-      
-      if (Platform.OS === 'web') {
-        window.alert('Notification supprimée avec succès');
-      } else {
-        Alert.alert('Succès', 'Notification supprimée avec succès');
-      }
+      showAlert('Succès', 'Notification supprimée avec succès', 'success');
     } catch (error) {
       console.error('Error deleting notification:', error);
-      if (Platform.OS === 'web') {
-        window.alert('Erreur lors de la suppression');
-      } else {
-        Alert.alert('Erreur', 'Impossible de supprimer la notification');
-      }
+      showAlert('Erreur', 'Impossible de supprimer la notification', 'error');
     }
   };
 
@@ -135,6 +159,35 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
 
     // Navigation selon le type de notification
     switch (notification.type) {
+      case 'pet_assignment_request':
+        // Pour les vétérinaires : ouvrir le modal d'approbation
+        console.log('→ Ouverture du modal d\'approbation');
+        try {
+          setIsLoading(true);
+          
+          // Récupérer les détails de l'animal
+          if (notification.data?.petId) {
+            const pet = await getPetById(notification.data.petId);
+            setPetDetails(pet);
+          }
+          
+          setSelectedNotification(notification);
+          setShowApprovalModal(true);
+        } catch (error) {
+          console.error('Erreur chargement détails:', error);
+          showAlert('Erreur', 'Impossible de charger les détails', 'error');
+        } finally {
+          setIsLoading(false);
+        }
+        break;
+
+      case 'pet_assignment_accepted':
+      case 'pet_assignment_rejected':
+        // Pour les propriétaires : notification de réponse
+        console.log('→ Demande traitée, rester sur cette page');
+        // Pas de navigation spéciale, juste afficher la notification
+        break;
+
       case 'new_appointment_request':
         // Pour les vétérinaires : aller vers la page de gestion des RDV
         console.log('→ Navigation vers ManageAppointments');
@@ -176,8 +229,96 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
     }
   };
 
+  const handleApprove = async () => {
+    if (!selectedNotification?.data?.requestId || !selectedNotification?.data?.ownerId) return;
+
+    try {
+      setIsProcessing(true);
+      console.log('✅ Approbation de la demande:', selectedNotification.data.requestId);
+
+      // Accepter la demande
+      await acceptAssignmentRequest(selectedNotification.data.requestId);
+
+      // Créer une notification pour le propriétaire
+      await addNotification({
+        userId: selectedNotification.data.ownerId,
+        type: 'pet_assignment_accepted',
+        title: 'Demande acceptée ! 🎉',
+        message: `Dr. ${user?.firstName} ${user?.lastName} a accepté de prendre en charge ${selectedNotification.data.petName}. Vous pouvez maintenant prendre rendez-vous !`,
+        read: false,
+        data: {
+          petId: selectedNotification.data.petId,
+          vetId: user?.id,
+        },
+      });
+
+      // Supprimer la notification de la liste
+      await deleteNotificationFromFirestore(selectedNotification.id);
+      setNotifications(prev => prev.filter(n => n.id !== selectedNotification.id));
+
+      // Fermer le modal
+      setShowApprovalModal(false);
+      setSelectedNotification(null);
+      setPetDetails(null);
+
+      showAlert('Succès', 'Demande acceptée avec succès !', 'success');
+    } catch (error) {
+      console.error('❌ Erreur approbation:', error);
+      showAlert('Erreur', 'Impossible d\'accepter la demande', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!selectedNotification?.data?.requestId || !selectedNotification?.data?.ownerId) return;
+
+    try {
+      setIsProcessing(true);
+      console.log('❌ Refus de la demande:', selectedNotification.data.requestId);
+
+      // Refuser la demande
+      await rejectAssignmentRequest(selectedNotification.data.requestId);
+
+      // Créer une notification pour le propriétaire
+      await addNotification({
+        userId: selectedNotification.data.ownerId,
+        type: 'pet_assignment_rejected',
+        title: 'Demande refusée',
+        message: `Dr. ${user?.firstName} ${user?.lastName} ne peut pas prendre en charge ${selectedNotification.data.petName} pour le moment.`,
+        read: false,
+        data: {
+          petId: selectedNotification.data.petId,
+          vetId: user?.id,
+        },
+      });
+
+      // Supprimer la notification de la liste
+      await deleteNotificationFromFirestore(selectedNotification.id);
+      setNotifications(prev => prev.filter(n => n.id !== selectedNotification.id));
+
+      // Fermer le modal
+      setShowApprovalModal(false);
+      setSelectedNotification(null);
+      setPetDetails(null);
+
+      showAlert('Refusé', 'Demande refusée', 'info');
+    } catch (error) {
+      console.error('❌ Erreur refus:', error);
+      showAlert('Erreur', 'Impossible de refuser la demande', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'pet_assignment_request':
+        return 'medical';
+      case 'pet_assignment_accepted':
+        return 'checkmark-circle';
+      case 'pet_assignment_rejected':
+        return 'close-circle';
       case 'new_appointment_request':
         return 'calendar';
       case 'appointment_accepted':
@@ -199,6 +340,12 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
 
   const getNotificationColor = (type: string) => {
     switch (type) {
+      case 'pet_assignment_request':
+        return colors.teal;
+      case 'pet_assignment_accepted':
+        return '#4CAF50';
+      case 'pet_assignment_rejected':
+        return '#F44336';
       case 'new_appointment_request':
         return '#FF9800';
       case 'appointment_accepted':
@@ -277,6 +424,15 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
 
   return (
     <View style={styles.container}>
+      {/* In-App Alert */}
+      <InAppAlert
+        visible={alert.visible}
+        title={alert.title}
+        message={alert.message}
+        type={alert.type}
+        onConfirm={closeAlert}
+      />
+
       {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -384,6 +540,89 @@ export const ScheduledNotificationsScreen: React.FC<ScheduledNotificationsScreen
           </View>
         )}
       </ScrollView>
+
+      {/* Modal d'approbation */}
+      <Modal
+        visible={showApprovalModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowApprovalModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="medical" size={48} color={colors.teal} />
+              <Text style={styles.modalTitle}>Nouvelle demande de prise en charge</Text>
+            </View>
+
+            {isLoading ? (
+              <ActivityIndicator size="large" color={colors.teal} />
+            ) : petDetails ? (
+              <View style={styles.petDetailsContainer}>
+                <View style={styles.petDetailRow}>
+                  <Text style={styles.petDetailLabel}>Animal :</Text>
+                  <Text style={styles.petDetailValue}>{petDetails.name}</Text>
+                </View>
+                <View style={styles.petDetailRow}>
+                  <Text style={styles.petDetailLabel}>Espèce :</Text>
+                  <Text style={styles.petDetailValue}>{petDetails.type}</Text>
+                </View>
+                <View style={styles.petDetailRow}>
+                  <Text style={styles.petDetailLabel}>Race :</Text>
+                  <Text style={styles.petDetailValue}>{petDetails.breed}</Text>
+                </View>
+                <View style={styles.petDetailRow}>
+                  <Text style={styles.petDetailLabel}>Âge :</Text>
+                  <Text style={styles.petDetailValue}>{petDetails.age} ans</Text>
+                </View>
+                <View style={styles.petDetailRow}>
+                  <Text style={styles.petDetailLabel}>Propriétaire :</Text>
+                  <Text style={styles.petDetailValue}>{selectedNotification?.data?.ownerName}</Text>
+                </View>
+              </View>
+            ) : null}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.rejectButton]}
+                onPress={handleReject}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="close-circle" size={24} color={colors.white} />
+                    <Text style={styles.modalButtonText}>Refuser</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.approveButton]}
+                onPress={handleApprove}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={24} color={colors.white} />
+                    <Text style={styles.modalButtonText}>Accepter</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowApprovalModal(false)}
+              disabled={isProcessing}
+            >
+              <Text style={styles.modalCloseText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -562,6 +801,85 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     backgroundColor: '#FFEBEE',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 500,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.navy,
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  petDetailsContainer: {
+    backgroundColor: colors.lightGray,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  petDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  petDetailLabel: {
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  petDetailValue: {
+    fontSize: typography.fontSize.md,
+    color: colors.navy,
+    fontWeight: typography.fontWeight.bold,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  modalButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.xs,
+  },
+  rejectButton: {
+    backgroundColor: colors.error,
+  },
+  approveButton: {
+    backgroundColor: colors.teal,
+  },
+  modalButtonText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  modalCloseButton: {
+    padding: spacing.sm,
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: typography.fontSize.md,
+    color: colors.gray,
   },
 });
 

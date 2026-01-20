@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Firebase</title>
+</head>
+<body>
+  <h1>Test Firebase Connection</h1>
+  <button onclick="testFirebase()">Tester la connexion</button>
+  <pre id="result"></pre>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyD5m4nhQG2axSfKVwlc16YR6G3ujYYbQeU",
+      authDomain: "petcare-2a317.firebaseapp.com",
+      projectId: "petcare-2a317",
+      storageBucket: "petcare-2a317.firebasestorage.app",
+      messagingSenderId: "828878305795",
+      appId: "1:828878305795:web:d763e6771dec4535fa6c36"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    
+    window.testFirebase = async () => {
+      const result = document.getElementById('result');
+      result.textContent = 'Test en cours...';
+      
+      try {
+        // Test simple : essayer de se connecter
+        const userCredential = await signInWithEmailAndPassword(auth, 'admin@petcare.com', 'admin123');
+        result.textContent = '✅ SUCCÈS! Firebase fonctionne correctement.\n\nUtilisateur: ' + userCredential.user.email;
+      } catch (error) {
+        result.textContent = '❌ ERREUR: ' + error.code + '\n\n' + error.message;
+      }
+    };
+  </script>
+</body>
+</html>

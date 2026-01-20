@@ -74,6 +74,7 @@ export interface Reminder {
   time?: string;
   completed: boolean;
   notes?: string;
+  status?: 'past' | 'upcoming'; // Calculé dynamiquement
 }
 
 export interface Document {
@@ -100,8 +101,14 @@ export interface Appointment {
   time: string;
   type: string;
   reason?: string;
-  status: 'upcoming' | 'completed' | 'cancelled' | 'pending';
+  status: 'pending' | 'proposed' | 'upcoming' | 'completed' | 'cancelled' | 'rejected';
   notes?: string;
+  proposedDate?: string;
+  proposedTime?: string;
+  proposalMessage?: string;
+  rejectionReason?: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface PetAssignmentRequest {
@@ -319,10 +326,23 @@ export const getRemindersByOwnerId = async (ownerId: string): Promise<Reminder[]
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Reminder[];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      const reminderDate = data.date;
+      
+      // Calculer le status basé sur la date
+      const status = reminderDate < todayStr ? 'past' : 'upcoming';
+      
+      return {
+        id: doc.id,
+        ...data,
+        status,
+      } as Reminder;
+    });
   } catch (error) {
     console.error('Error getting reminders:', error);
     return [];
@@ -630,6 +650,86 @@ export const completeAppointment = async (appointmentId: string): Promise<void> 
     });
   } catch (error) {
     console.error('Error completing appointment:', error);
+    throw error;
+  }
+};
+
+// Accept appointment request
+export const acceptAppointmentRequest = async (appointmentId: string): Promise<void> => {
+  try {
+    await updateDoc(doc(db, 'appointments', appointmentId), {
+      status: 'upcoming',
+      updatedAt: serverTimestamp(),
+    });
+    console.log('✅ Appointment accepted:', appointmentId);
+  } catch (error) {
+    console.error('Error accepting appointment:', error);
+    throw error;
+  }
+};
+
+// Propose alternative date/time
+export const proposeAlternativeAppointment = async (
+  appointmentId: string,
+  proposedDate: string,
+  proposedTime: string,
+  proposalMessage?: string
+): Promise<void> => {
+  try {
+    await updateDoc(doc(db, 'appointments', appointmentId), {
+      status: 'proposed',
+      proposedDate,
+      proposedTime,
+      proposalMessage: proposalMessage || undefined,
+      updatedAt: serverTimestamp(),
+    });
+    console.log('✅ Alternative proposed for appointment:', appointmentId);
+  } catch (error) {
+    console.error('Error proposing alternative:', error);
+    throw error;
+  }
+};
+
+// Reject appointment request
+export const rejectAppointmentRequest = async (appointmentId: string, rejectionReason?: string): Promise<void> => {
+  try {
+    await updateDoc(doc(db, 'appointments', appointmentId), {
+      status: 'rejected',
+      rejectionReason: rejectionReason || undefined,
+      updatedAt: serverTimestamp(),
+    });
+    console.log('✅ Appointment rejected:', appointmentId);
+  } catch (error) {
+    console.error('Error rejecting appointment:', error);
+    throw error;
+  }
+};
+
+// Accept proposed alternative (by owner)
+export const acceptProposedAppointment = async (appointmentId: string): Promise<void> => {
+  try {
+    const appointmentRef = doc(db, 'appointments', appointmentId);
+    const appointmentSnap = await getDoc(appointmentRef);
+    
+    if (!appointmentSnap.exists()) {
+      throw new Error('Appointment not found');
+    }
+    
+    const appointment = appointmentSnap.data();
+    
+    // Move proposed date/time to main date/time and set status to upcoming
+    await updateDoc(appointmentRef, {
+      date: appointment.proposedDate,
+      time: appointment.proposedTime,
+      status: 'upcoming',
+      proposedDate: null,
+      proposedTime: null,
+      proposalMessage: null,
+      updatedAt: serverTimestamp(),
+    });
+    console.log('✅ Owner accepted proposed appointment:', appointmentId);
+  } catch (error) {
+    console.error('Error accepting proposed appointment:', error);
     throw error;
   }
 };

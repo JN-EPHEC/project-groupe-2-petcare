@@ -45,6 +45,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-svg": "^15.15.1",
     "react-native-web": "~0.19.13",
+    "react-qr-code": "^2.0.18",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

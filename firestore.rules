@@ -42,7 +42,13 @@ service cloud.firestore {
       
       // Écriture: propriétaire ou admin
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.ownerId) || hasRole('admin');
+      
+      // Mise à jour: propriétaire, admin, OU vétérinaire qui s'assigne lui-même
+      allow update: if isOwner(resource.data.ownerId) || 
+                       hasRole('admin') ||
+                       (hasRole('vet') && request.resource.data.vetId == request.auth.uid);
+      
+      allow delete: if isOwner(resource.data.ownerId) || hasRole('admin');
     }
     
     // Règles pour la collection health_records

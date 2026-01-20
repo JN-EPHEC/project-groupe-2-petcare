@@ -13,7 +13,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { getAppointmentsByOwnerId, deleteAppointment } from '../../services/firestoreService';
+import { getAppointmentsByOwnerId, deleteAppointment, acceptProposedAppointment } from '../../services/firestoreService';
+import { sendAppointmentStatusNotification } from '../../services/notificationService';
+import { InAppAlert } from '../../components';
 
 interface MyAppointmentsScreenProps {
   navigation: any;
@@ -31,12 +33,15 @@ interface Appointment {
   time: string;
   reason: string;
   notes?: string;
-  status: 'pending' | 'upcoming' | 'rejected' | 'cancelled' | 'completed';
+  status: 'pending' | 'proposed' | 'upcoming' | 'rejected' | 'cancelled' | 'completed';
   createdAt: string;
   updatedAt?: string;
   rejectionReason?: string;
   confirmedDate?: string;
   confirmedTime?: string;
+  proposedDate?: string;
+  proposedTime?: string;
+  proposalMessage?: string;
 }
 
 export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navigation }) => {
@@ -44,6 +49,8 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
+  const [alert, setAlert] = useState<{ visible: boolean; title: string; message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
 
   // Utiliser useFocusEffect pour rafraîchir à chaque fois que l'écran revient en focus
   useFocusEffect(
@@ -113,10 +120,53 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     }
   };
 
+  const handleAcceptProposal = async (appointment: Appointment) => {
+    try {
+      setIsAccepting(true);
+      await acceptProposedAppointment(appointment.id);
+
+      // Envoyer notification au vétérinaire
+      await sendAppointmentStatusNotification(
+        appointment.vetId,
+        'Proposition acceptée',
+        `${appointment.ownerName} a accepté le rendez-vous pour ${appointment.petName} le ${appointment.proposedDate} à ${appointment.proposedTime}`,
+        {
+          type: 'proposal_accepted_by_owner',
+          appointmentId: appointment.id,
+          petName: appointment.petName,
+          ownerName: appointment.ownerName,
+          date: appointment.proposedDate,
+          time: appointment.proposedTime,
+        }
+      );
+
+      setAlert({
+        visible: true,
+        title: 'Confirmé !',
+        message: 'Le rendez-vous a été confirmé pour la date proposée.',
+        type: 'success',
+      });
+
+      loadAppointments();
+    } catch (error) {
+      console.error('Error accepting proposal:', error);
+      setAlert({
+        visible: true,
+        title: 'Erreur',
+        message: 'Impossible de confirmer le rendez-vous',
+        type: 'error',
+      });
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
   const getStatusColor = (status: Appointment['status']) => {
     switch (status) {
       case 'pending':
         return '#FFA726';
+      case 'proposed':
+        return colors.teal;
       case 'upcoming':
         return '#66BB6A';
       case 'rejected':
@@ -134,6 +184,8 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     switch (status) {
       case 'pending':
         return 'En attente';
+      case 'proposed':
+        return 'Proposition';
       case 'upcoming':
         return 'Confirmé';
       case 'rejected':
@@ -151,6 +203,8 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
     switch (status) {
       case 'pending':
         return 'time-outline';
+      case 'proposed':
+        return 'calendar-outline';
       case 'upcoming':
         return 'checkmark-circle';
       case 'rejected':
@@ -240,6 +294,40 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
             <Text style={[styles.notesText, { color: '#C62828' }]}>
               {appointment.rejectionReason}
             </Text>
+          </View>
+        )}
+
+        {/* Proposition alternative */}
+        {appointment.status === 'proposed' && appointment.proposedDate && appointment.proposedTime && (
+          <View style={[styles.notesBox, { backgroundColor: '#E0F2F1' }]}>
+            <View style={styles.proposalHeader}>
+              <Text style={[styles.reasonLabel, { color: colors.teal }]}>📅 Nouvelle proposition :</Text>
+            </View>
+            <View style={styles.proposalDateRow}>
+              <Ionicons name="calendar" size={18} color={colors.teal} />
+              <Text style={styles.proposalDateText}>
+                {appointment.proposedDate} à {appointment.proposedTime}
+              </Text>
+            </View>
+            {appointment.proposalMessage && (
+              <Text style={[styles.notesText, { color: colors.navy, marginTop: spacing.xs }]}>
+                {appointment.proposalMessage}
+              </Text>
+            )}
+            <TouchableOpacity
+              style={styles.acceptProposalButton}
+              onPress={() => handleAcceptProposal(appointment)}
+              disabled={isAccepting}
+            >
+              {isAccepting ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+                  <Text style={styles.acceptProposalButtonText}>Accepter cette proposition</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -334,6 +422,17 @@ export const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ navi
           </>
         )}
       </ScrollView>
+
+      {/* Alert */}
+      {alert && (
+        <InAppAlert
+          visible={alert.visible}
+          title={alert.title}
+          message={alert.message}
+          type={alert.type}
+          onClose={() => setAlert(null)}
+        />
+      )}
     </View>
   );
 };
@@ -539,6 +638,36 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  proposalHeader: {
+    marginBottom: spacing.xs,
+  },
+  proposalDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  proposalDateText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.teal,
+  },
+  acceptProposalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.teal,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  acceptProposalButtonText: {
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
   },

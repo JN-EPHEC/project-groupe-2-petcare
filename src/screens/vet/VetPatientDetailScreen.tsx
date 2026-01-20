@@ -36,17 +36,11 @@ export const VetPatientDetailScreen: React.FC<VetPatientDetailScreenProps> = ({ 
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistory[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
-  useEffect(() => {
-    loadPatientData();
-  }, [patientId]);
-
   // Recharger les données quand on revient sur cet écran (après ajout d'un élément)
   useFocusEffect(
     useCallback(() => {
-      if (!isLoading) {
-        console.log('🔄 VetPatientDetailScreen focused - Rechargement des données...');
-        loadPatientData();
-      }
+      console.log('🔄 VetPatientDetailScreen focused - Rechargement des données...');
+      loadPatientData();
     }, [patientId])
   );
 
@@ -671,11 +665,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   bottomSpacer: {
-    height: spacing.xxl,
+    height: 120,
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 100,
     right: 20,
     width: 60,
     height: 60,
@@ -688,6 +682,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
+    zIndex: 1000,
   },
 });
 

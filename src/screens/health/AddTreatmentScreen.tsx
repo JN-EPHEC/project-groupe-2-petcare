@@ -92,7 +92,7 @@ export const AddTreatmentScreen: React.FC<AddTreatmentScreenProps> = ({
       await addTreatment({
         petId: pet.id,
         petName: pet.name,
-        ownerId: user?.id || '',
+        ownerId: pet.ownerId || user?.id || '',
         type,
         name: name.trim(),
         startDate: startDate.toISOString(),
@@ -410,6 +410,7 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 });
+
 
 
 

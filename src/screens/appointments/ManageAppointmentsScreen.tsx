@@ -21,6 +21,7 @@ import {
   deleteAppointment,
 } from '../../services/firestoreService';
 import { sendAppointmentStatusNotification } from '../../services/notificationService';
+import { InAppAlert } from '../../components';
 
 interface ManageAppointmentsScreenProps {
   navigation: any;
@@ -60,6 +61,27 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
   const [confirmedDate, setConfirmedDate] = useState('');
   const [confirmedTime, setConfirmedTime] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // État pour l'alert in-app
+  const [alert, setAlert] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info') => {
+    setAlert({ visible: true, title, message, type });
+  };
+
+  const closeAlert = () => {
+    setAlert({ ...alert, visible: false });
+  };
 
   useEffect(() => {
     loadAppointments();
@@ -128,7 +150,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
     if (!selectedAppointment) return;
 
     if (!confirmedDate || !confirmedTime) {
-      Alert.alert('Erreur', 'Veuillez spécifier une date et une heure');
+      showAlert('Erreur', 'Veuillez spécifier une date et une heure', 'error');
       return;
     }
 
@@ -170,14 +192,10 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
       closeModal();
       loadAppointments();
       
-      if (Platform.OS === 'web') {
-        window.alert('Rendez-vous confirmé avec succès');
-      } else {
-        Alert.alert('Succès', 'Rendez-vous confirmé avec succès');
-      }
+      showAlert('Succès', 'Rendez-vous confirmé avec succès', 'success');
     } catch (error) {
       console.error('❌ Error confirming appointment:', error);
-      Alert.alert('Erreur', 'Impossible de confirmer le rendez-vous');
+      showAlert('Erreur', 'Impossible de confirmer le rendez-vous', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -187,7 +205,7 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
     if (!selectedAppointment) return;
 
     if (!rejectionReason.trim()) {
-      Alert.alert('Erreur', 'Veuillez indiquer une raison pour le refus');
+      showAlert('Erreur', 'Veuillez indiquer une raison pour le refus', 'error');
       return;
     }
 
@@ -225,14 +243,10 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
       closeModal();
       loadAppointments();
       
-      if (Platform.OS === 'web') {
-        window.alert('Rendez-vous refusé');
-      } else {
-        Alert.alert('Refusé', 'Le propriétaire sera notifié');
-      }
+      showAlert('Refusé', 'Le propriétaire sera notifié', 'info');
     } catch (error) {
       console.error('❌ Error rejecting appointment:', error);
-      Alert.alert('Erreur', 'Impossible de refuser le rendez-vous');
+      showAlert('Erreur', 'Impossible de refuser le rendez-vous', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -426,6 +440,15 @@ export const ManageAppointmentsScreen: React.FC<ManageAppointmentsScreenProps> =
 
   return (
     <View style={styles.container}>
+      {/* In-App Alert */}
+      <InAppAlert
+        visible={alert.visible}
+        title={alert.title}
+        message={alert.message}
+        type={alert.type}
+        onConfirm={closeAlert}
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>

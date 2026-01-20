@@ -13,7 +13,7 @@ interface VetAppointmentsScreenProps {
 export const VetAppointmentsScreen: React.FC<VetAppointmentsScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [selectedTab, setSelectedTab] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
+  const [selectedTab, setSelectedTab] = useState<'pending' | 'upcoming' | 'past' | 'cancelled'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -176,40 +176,60 @@ export const VetAppointmentsScreen: React.FC<VetAppointmentsScreenProps> = ({ na
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'upcoming' && styles.tabActive]}
-          onPress={() => setSelectedTab('upcoming')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'upcoming' && styles.tabTextActive]}>
-            À venir ({allAppointments.filter(a => a.status === 'upcoming').length})
-          </Text>
-        </TouchableOpacity>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScrollView}>
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'pending' && styles.tabActive]}
+            onPress={() => setSelectedTab('pending')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'pending' && styles.tabTextActive]}>
+              En attente ({allAppointments.filter(a => a.status === 'pending').length})
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'past' && styles.tabActive]}
-          onPress={() => setSelectedTab('past')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'past' && styles.tabTextActive]}>
-            Passés ({allAppointments.filter(a => a.status === 'past').length})
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'upcoming' && styles.tabActive]}
+            onPress={() => setSelectedTab('upcoming')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'upcoming' && styles.tabTextActive]}>
+              Confirmés ({allAppointments.filter(a => a.status === 'upcoming').length})
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'cancelled' && styles.tabActive]}
-          onPress={() => setSelectedTab('cancelled')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'cancelled' && styles.tabTextActive]}>
-            Annulés ({allAppointments.filter(a => a.status === 'cancelled').length})
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'past' && styles.tabActive]}
+            onPress={() => setSelectedTab('past')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'past' && styles.tabTextActive]}>
+              Passés ({allAppointments.filter(a => a.status === 'past').length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'cancelled' && styles.tabActive]}
+            onPress={() => setSelectedTab('cancelled')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'cancelled' && styles.tabTextActive]}>
+              Annulés ({allAppointments.filter(a => a.status === 'cancelled').length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       {/* Appointments List */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {filteredAppointments.length > 0 ? (
           filteredAppointments.map((appointment) => (
-            <TouchableOpacity key={appointment.id} style={styles.appointmentCard}>
+            <TouchableOpacity 
+              key={appointment.id} 
+              style={styles.appointmentCard}
+              onPress={() => {
+                if (appointment.status === 'pending') {
+                  navigation.navigate('ManageAppointmentRequest', { appointment });
+                }
+              }}
+              disabled={appointment.status !== 'pending'}
+            >
               <View style={[styles.typeIndicator, { backgroundColor: getTypeColor(appointment.type) }]} />
               
               <View style={styles.appointmentContent}>
@@ -333,6 +353,9 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: spacing.xs,
   },
+  tabsScrollView: {
+    maxHeight: 60,
+  },
   tabsContainer: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
@@ -340,7 +363,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   tab: {
-    flex: 1,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.lightBlue,
